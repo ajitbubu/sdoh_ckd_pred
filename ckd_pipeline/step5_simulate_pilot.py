@@ -54,10 +54,18 @@ def simulate_intervention_outcomes(df_pilot, model, features):
     print(f"  High-risk identified (score >{RISK_THRESHOLD}): {n_highrisk:,} ({n_highrisk/n_total*100:.1f}%)")
     print(f"  Outreach triggered: {n_outreach:,} ({n_outreach/n_highrisk*100:.1f}% of high-risk)")
 
-    # Stage 3 subgroup — used for progression outcome
+    # Stage 3 subgroup — used for downstream care metrics (referral, labs, BP, progression)
     stage3_mask = df["ckd_stage"].isin(["Stage_3a", "Stage_3b"])
     n_stage3    = stage3_mask.sum()
     print(f"  Stage 3 subgroup: N={n_stage3:,}")
+
+    # Stage 2 subgroup — used for Early Detection Rate (pre-diagnosis denominator)
+    # Reviewer comment: measuring "early detection" within patients already diagnosed
+    # with Stage 3 is circular. Fix: the at-risk denominator for early detection is
+    # the population NOT yet recognized as Stage 3 (i.e., Stage 2 patients).
+    stage2_mask = df["ckd_stage"] == "Stage_2"
+    n_stage2    = stage2_mask.sum()
+    print(f"  Stage 2 subgroup (early-detection denominator): N={n_stage2:,}")
 
     # ── Baseline rates (USRDS 2023 usual care) ───────────────────────────
     baseline = {
@@ -94,8 +102,10 @@ def simulate_intervention_outcomes(df_pilot, model, features):
     for key, label in labels.items():
         b = baseline[key]
         p = projected[key]
-        b_count = int(b * n_stage3)
-        p_count = int(p * n_stage3)
+        # Early detection uses Stage-2 denominator (pre-diagnosis); all others use Stage 3
+        denom = n_stage2 if key == "early_detection_rate" else n_stage3
+        b_count = int(b * denom)
+        p_count = int(p * denom)
         change  = p - b
         change_str = f"+{change*100:.0f} pp" if change > 0 else f"{change*100:.1f} pp"
         if key == "stage5_progression_rate":
@@ -103,8 +113,8 @@ def simulate_intervention_outcomes(df_pilot, model, features):
 
         results.append({
             "Outcome Measure":          label,
-            "Simulated Baseline":       f"{b*100:.1f}% ({b_count}/{n_stage3})",
-            "Projected Post-Deployment":f"{p*100:.1f}% ({p_count}/{n_stage3})",
+            "Simulated Baseline":       f"{b*100:.1f}% ({b_count}/{denom})",
+            "Projected Post-Deployment":f"{p*100:.1f}% ({p_count}/{denom})",
             "Projected Change":         change_str,
         })
 
