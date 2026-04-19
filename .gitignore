@@ -120,6 +120,10 @@ nginx/dhparam.pem
 *.bak
 *.backup
 
+# Word documents
+*.docx
+~$*.docx
+
 # PostgreSQL data
 postgres_data/
 
