@@ -143,7 +143,9 @@ def fig3_shap(df_train, model, features):
     df_tr = preprocess(df_train)
     X_sample = df_tr[features].values[:2000]  # sample for speed
 
-    explainer = shap.TreeExplainer(model)
+    # Pass the raw Booster to SHAP (it doesn't accept the shim wrapper)
+    booster_for_shap = model.get_booster() if hasattr(model, "get_booster") else model
+    explainer = shap.TreeExplainer(booster_for_shap)
     shap_vals = explainer.shap_values(X_sample)
     mean_abs  = np.abs(shap_vals).mean(axis=0)
     total     = mean_abs.sum()
@@ -287,8 +289,20 @@ if __name__ == "__main__":
     df_ext   = pd.read_csv(os.path.join(PROC_DIR, "cohort_external_val.csv"))
     features = joblib.load(os.path.join(MODEL_DIR, "feature_list.pkl"))
 
-    model = xgb.XGBClassifier()
-    model.load_model(os.path.join(MODEL_DIR, "sdoh_ckdpred_final.json"))
+    # XGBoost 2.0+ regression: XGBClassifier.load_model() doesn't restore n_classes_.
+    # Wrap the native Booster so predict_proba still works.
+    class BoosterShim:
+        def __init__(self, path, feature_names):
+            self._booster = xgb.Booster()
+            self._booster.load_model(path)
+            self._feature_names = feature_names
+        def predict_proba(self, X):
+            d = xgb.DMatrix(X, feature_names=self._feature_names)
+            p = self._booster.predict(d)
+            return np.vstack([1 - p, p]).T
+        def get_booster(self):
+            return self._booster
+    model = BoosterShim(os.path.join(MODEL_DIR, "sdoh_ckdpred_final.json"), features)
 
     print("\nGenerating Figure 1 (Architecture)...")
     fig1_architecture()
