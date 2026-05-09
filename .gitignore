@@ -123,6 +123,24 @@ nginx/dhparam.pem
 # Word documents
 *.docx
 ~$*.docx
+# Exception: keep the JMIR PHS v4 revised manuscript
+!CKD_Paper_JMIR_PHS_v4_revised.docx
+
+# ── JMIR PHS pipeline (added 2026-05-09) ──────────────────────────────────
+# Raw downloads (250MB+ NHANES, 47MB CDC PLACES) — re-fetchable from public sources
+ckd_pipeline/data/raw/
+# Processed analytic cohorts — derived, can be regenerated from src/
+ckd_pipeline/data/processed/*.csv
+ckd_pipeline/data/processed/*.parquet
+# Trained model artifacts — large, regenerable
+ckd_pipeline/models/*.json
+ckd_pipeline/models/*.pkl
+# Out-of-fold per-row predictions — large, derived
+ckd_pipeline/outputs/*oof_predictions.csv
+# Pre-existing scratch from synthetic-paper attempt
+CKD_Complete_Package/
+# Real-world reference datasets (UCI, USRDS public tables, etc.) — kept locally
+real_world_ckd_data/
 
 # PostgreSQL data
 postgres_data/

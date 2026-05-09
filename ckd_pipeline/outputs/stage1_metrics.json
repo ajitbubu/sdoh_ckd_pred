@@ -1,0 +1,12 @@
+{
+  "n_tracts": 72337,
+  "adi_source": "placeholder_synthetic",
+  "random_5fold_r2_mean": -0.0121,
+  "random_5fold_r2_std": 0.0025,
+  "random_5fold_mae_mean": 0.6487,
+  "calibration_slope": -0.0709,
+  "calibration_intercept": 3.1691,
+  "loro_r2_min": -0.166,
+  "loro_r2_max": -0.0135,
+  "manuscript_target_r2": 0.45
+}

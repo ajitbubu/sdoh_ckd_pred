@@ -1,0 +1,6 @@
+Metric,Value
+Operating threshold,0.288
+Sensitivity (recall),0.454
+Specificity,0.9
+Positive predictive value,0.424
+Negative predictive value,0.911
