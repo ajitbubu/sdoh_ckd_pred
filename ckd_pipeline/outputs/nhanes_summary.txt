@@ -1,0 +1,14 @@
+SDOH-CKDPred — NHANES analysis summary
+==================================================
+
+Primary cohort: cycles 2005-2014, N = 2,911
+5-year mortality events: 646 (22.2%)
+
+OOF cross-validated AUROC:
+  Clinical-only LR:     0.7543  (95% CI 0.734-0.774)
+  Clinical-only XGB:    0.7313  (95% CI 0.708-0.753)
+  SDOH-augmented XGB:   0.7448  (95% CI 0.723-0.765)
+
+DeLong's tests (vs SDOH-augmented XGB):
+  vs Clinical-only XGB (apples-to-apples): z=2.745, p=0.0061
+  vs Clinical-only LR:                     z=-1.1156, p=0.2646

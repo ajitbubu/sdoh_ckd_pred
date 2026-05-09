@@ -1,0 +1,21 @@
+{
+  "n": 15150,
+  "events": 2706,
+  "weighted_prevalence_pct": 13.93,
+  "auroc": 0.7733,
+  "auroc_per_fold_min": 0.7603,
+  "auroc_per_fold_max": 0.7996,
+  "auprc": 0.404,
+  "brier": 0.1019,
+  "calibration_slope": 0.9553,
+  "calibration_intercept": 0.0146,
+  "operating_threshold_for_90pct_spec": 0.2884,
+  "sensitivity_at_90pct_spec": 0.4543,
+  "fold_aurocs": [
+    0.7603,
+    0.7836,
+    0.7619,
+    0.7635,
+    0.7996
+  ]
+}

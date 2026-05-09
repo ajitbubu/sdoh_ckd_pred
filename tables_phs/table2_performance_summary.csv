@@ -1,0 +1,13 @@
+Metric,Value
+Discrimination — AUROC,0.773 (0.760–0.800)
+Discrimination — AUPRC,0.404
+Calibration — Brier score,0.102
+Calibration — slope,0.955
+Calibration — intercept,+0.015
+Operating point threshold,0.288
+Sensitivity @ 90% spec,45.4%
+Subgroup AUROC — minimum,0.638
+Subgroup AUROC — maximum,0.819
+N analytic cohort,"15,150"
+Events (CKD positive),"2,706"
+Survey-weighted CKD prevalence,13.93%

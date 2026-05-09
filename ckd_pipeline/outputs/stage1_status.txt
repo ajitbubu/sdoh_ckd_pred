@@ -1,0 +1,7 @@
+ADI source: placeholder_synthetic
+
+*** PLACEHOLDER ADI USED — STAGE 1 NUMBERS ARE NOT THE
+*** MANUSCRIPT NUMBERS. Download real ADI 2020 from
+*** https://www.neighborhoodatlas.medicine.wisc.edu/
+*** and save to /sessions/laughing-lucid-heisenberg/mnt/sdoh_ckd_pred/ckd_pipeline/data/raw/adi_2020_national_blockgroup.csv
+*** then re-run.
