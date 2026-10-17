@@ -20,7 +20,7 @@ Atlas requires registration and is NOT auto-downloadable. The file currently
 present at ckd_pipeline/data/raw/adi_2020_national.csv is a SYNTHETIC
 PLACEHOLDER (33,001 ZCTA-keyed rows with random ADI values), not real data.
 
-For Stage 1 numbers to reproduce the manuscript's R² ≈ 0.450, the real ADI
+For Stage 1 numbers to reproduce the manuscript's R² ≈ 0.444, the real ADI
 file must be downloaded:
   1. Register at https://www.neighborhoodatlas.medicine.wisc.edu/
   2. Download '2020 ADI Download — National Block Group'
@@ -107,6 +107,14 @@ def load_adi_tract_level(places_tracts):
         cols = [c for c in bg.columns if c.upper().startswith("ADI")]
         if not cols:
             cols = ["ADI_NATRANK", "ADI_STATERNK", "ADI_QUINTILE"]
+        # Neighborhood Atlas suppression codes (GQ, PH, GQ-PH, QDI) → NaN
+        for c in cols:
+            bg[c] = pd.to_numeric(bg[c], errors="coerce")
+        # The public block-group file has no quintile column; derive it
+        # from the national percentile rank (1-20 → 1, ..., 81-100 → 5).
+        if "ADI_QUINTILE" not in cols:
+            bg["ADI_QUINTILE"] = np.ceil(bg["ADI_NATRANK"] / 20)
+            cols.append("ADI_QUINTILE")
         adi_tract = bg.groupby("TractFIPS")[cols].mean().reset_index()
         adi_tract.columns = [c.lower() if c != "TractFIPS" else c for c in adi_tract.columns]
         return adi_tract, "real_neighborhood_atlas"
@@ -301,7 +309,10 @@ if __name__ == "__main__":
         "calibration_intercept": round(cal_intercept, 4),
         "loro_r2_min": round(float(loro_results["r2"].min()), 4),
         "loro_r2_max": round(float(loro_results["r2"].max()), 4),
-        "manuscript_target_r2": 0.450,
+        # Rank agreement of out-of-fold predictions with PLACES (for tract
+        # prioritization), reported alongside R² (point-estimate accuracy)
+        "spearman_rho_oof": round(float(stats.spearmanr(df["oof_pred"], df[TARGET])[0]), 4),
+        "manuscript_target_r2": 0.444,
     }
 
     # Save outputs
@@ -332,5 +343,5 @@ if __name__ == "__main__":
         print(f"  {k:<30s}  {v}")
     if adi_source == "placeholder_synthetic":
         print("\n  ⚠  PLACEHOLDER ADI used — Stage 1 numbers are NOT the manuscript's.")
-        print("     Download real ADI block-group file to reproduce R² ≈ 0.450.")
+        print("     Download real ADI block-group file to reproduce R² ≈ 0.444.")
     print("=" * 64)

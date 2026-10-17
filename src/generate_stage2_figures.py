@@ -66,8 +66,12 @@ def load_inputs():
     oof    = pd.read_csv(os.path.join(OUT, "stage2_oof_predictions.csv"))
     with open(os.path.join(OUT, "stage2_metrics.json")) as f:
         metrics = json.load(f)
+    # Design-based CIs from src/stage2_supplementary.py
+    with open(os.path.join(OUT, "stage2_metrics_ci.json")) as f:
+        metrics.update({k: v for k, v in json.load(f).items() if k.endswith("_ci")
+                        or k.startswith(("logistic_", "calibration_in"))})
     cal    = pd.read_csv(os.path.join(OUT, "stage2_calibration_deciles.csv"))
-    sg     = pd.read_csv(os.path.join(OUT, "stage2_subgroup_auroc.csv"))
+    sg     = pd.read_csv(os.path.join(OUT, "stage2_subgroup_auroc_with_ci.csv"))
     dc     = pd.read_csv(os.path.join(OUT, "stage2_decision_curve.csv"))
     return cohort, oof, metrics, cal, sg, dc
 
@@ -90,9 +94,9 @@ def fig8_roc(oof, metrics):
     ax.set_xlim(0, 1); ax.set_ylim(0, 1.005)
     ax.legend(loc="lower right", frameon=True, fontsize=10)
     fig.text(0.02, 0.02,
-             f"5-fold CV, NHANES MEC weights, n={metrics['n']:,}, "
-             f"per-fold AUROC range {metrics['auroc_per_fold_min']:.3f}–"
-             f"{metrics['auroc_per_fold_max']:.3f}",
+             f"5-fold CV, NHANES MEC weights, n={metrics['n']:,}; "
+             f"design-based 95% CI {metrics['auroc_ci'][0]:.3f}–"
+             f"{metrics['auroc_ci'][1]:.3f}",
              fontsize=8, color="gray")
     fig.savefig(os.path.join(FIG, "fig08_roc.png"))
     plt.close(fig)
@@ -140,9 +144,12 @@ def fig10_calibration(cal, metrics):
     ax.set_title("Figure 10. Calibration by decile, Stage 2 NHANES classifier",
                  loc="left", fontsize=12, fontweight="bold")
     ax.legend(loc="upper left", frameon=True, fontsize=10)
-    fig.text(0.02, 0.02,
-             f"Calibration slope = {metrics['calibration_slope']:.3f}, "
-             f"intercept = {metrics['calibration_intercept']:.3f}",
+    fig.text(0.02, -0.04,
+             f"Decile slope = {metrics['calibration_slope']:.3f}; logistic "
+             f"calibration slope = {metrics['logistic_calibration_slope']:.3f} "
+             f"(95% CI {metrics['logistic_calibration_slope_ci'][0]:.2f}–"
+             f"{metrics['logistic_calibration_slope_ci'][1]:.2f}); "
+             f"calibration-in-the-large = {metrics['calibration_in_the_large']:+.3f}",
              fontsize=9, color="gray")
     fig.savefig(os.path.join(FIG, "fig10_calibration.png"))
     plt.close(fig)
@@ -150,41 +157,19 @@ def fig10_calibration(cal, metrics):
 
 # ── Figure 11: Forest plot of subgroup AUROC ─────────────────────────────
 def fig11_subgroup_forest(sg, metrics, oof):
-    """Compute bootstrap 95% CIs (1000 resamples) and plot forest."""
-    rng = np.random.RandomState(42)
-
-    # Add CIs by bootstrapping within each subgroup
-    sg = sg.copy()
-    sg = sg.dropna(subset=["auroc"])
-    sg["ci_lower"] = np.nan
-    sg["ci_upper"] = np.nan
-
-    for i, row in sg.iterrows():
-        sub = subset_by_label(oof, row["subgroup"])
-        if len(sub) < 50:
-            continue
-        boots = []
-        for _ in range(500):
-            idx = rng.randint(0, len(sub), size=len(sub))
-            ys = sub["ckd"].values[idx]
-            ps = sub["oof_prob"].values[idx]
-            ws = sub["mec_weight"].values[idx] if "mec_weight" in sub.columns else None
-            if len(np.unique(ys)) < 2:
-                continue
-            boots.append(roc_auc_score(ys, ps, sample_weight=ws))
-        if boots:
-            sg.at[i, "ci_lower"] = np.percentile(boots, 2.5)
-            sg.at[i, "ci_upper"] = np.percentile(boots, 97.5)
+    """Forest plot; design-based CIs come from src/stage2_supplementary.py."""
+    sg = sg.dropna(subset=["auroc"]).copy()
 
     # Order: age bands, sex, race
     order = ["Age <50", "Age 50-64", "Age ≥65", "Female", "Male",
              "Mexican American", "Other Hispanic", "NH White",
-             "NH Black", "NH Asian", "Other/Multi"]
+             "NH Black", "NH Asian", "Other/Multi",
+             "PIR <1.3", "PIR 1.3-3.49", "PIR ≥3.5"]
     sg["sort_key"] = sg["subgroup"].apply(
         lambda x: order.index(x) if x in order else 999)
     sg = sg.sort_values("sort_key").reset_index(drop=True)
 
-    fig, ax = plt.subplots(figsize=(7.5, 5.2))
+    fig, ax = plt.subplots(figsize=(7.5, 6.4))
     y_positions = np.arange(len(sg))[::-1]
     ax.errorbar(
         sg["auroc"], y_positions,
@@ -198,7 +183,7 @@ def fig11_subgroup_forest(sg, metrics, oof):
     ax.set_yticks(y_positions)
     ax.set_yticklabels([f"{s} (n={int(n):,})"
                          for s, n in zip(sg["subgroup"], sg["n"])])
-    ax.set_xlabel("Survey-weighted AUROC (95% bootstrap CI)")
+    ax.set_xlabel("Survey-weighted AUROC (95% design-based bootstrap CI)")
     ax.set_xlim(0.5, 1.0)
     ax.set_title("Figure 11. Subgroup AUROC, Stage 2 NHANES classifier",
                  loc="left", fontsize=12, fontweight="bold")
@@ -233,17 +218,20 @@ def fig12_decision_curve(dc):
 # ── Figure 13: Performance matrix ────────────────────────────────────────
 def fig13_performance_matrix(metrics, sg):
     rows = [
-        ("AUROC (95% per-fold range)",
-         f"{metrics['auroc']:.3f} ({metrics['auroc_per_fold_min']:.3f}–"
-         f"{metrics['auroc_per_fold_max']:.3f})"),
-        ("AUPRC (vs prev baseline)",
-         f"{metrics['auprc']:.3f} (baseline {metrics['weighted_prevalence_pct']/100:.3f})"),
-        ("Brier score", f"{metrics['brier']:.3f}"),
-        ("Calibration slope (intercept)",
-         f"{metrics['calibration_slope']:.3f} ({metrics['calibration_intercept']:+.3f})"),
-        ("Sensitivity at 90% specificity",
+        ("AUROC (95% CI)", f"{metrics['auroc']:.3f} ({_ci(metrics['auroc_ci'])})"),
+        ("AUPRC (95% CI; prevalence baseline)",
+         f"{metrics['auprc']:.3f} ({_ci(metrics['auprc_ci'])}; "
+         f"{metrics['weighted_prevalence_pct']/100:.3f})"),
+        ("Brier score (95% CI)", f"{metrics['brier']:.3f} ({_ci(metrics['brier_ci'])})"),
+        ("Logistic calibration slope (95% CI)",
+         f"{metrics['logistic_calibration_slope']:.3f} "
+         f"({_ci(metrics['logistic_calibration_slope_ci'])})"),
+        ("Calibration-in-the-large (95% CI)",
+         f"{metrics['calibration_in_the_large']:+.3f} "
+         f"({_ci(metrics['calibration_in_the_large_ci'])})"),
+        ("Sensitivity at 90% specificity (95% CI)",
          f"{metrics['sensitivity_at_90pct_spec']*100:.1f}% "
-         f"(threshold {metrics['operating_threshold_for_90pct_spec']:.3f})"),
+         f"({_ci(metrics['sensitivity_ci'], pct=True)})"),
         ("Subgroup AUROC range",
          f"{sg['auroc'].dropna().min():.3f}–{sg['auroc'].dropna().max():.3f}"),
         ("N analytic cohort", f"{metrics['n']:,}"),
@@ -336,20 +324,34 @@ def table1_baseline(cohort):
             "Self-rep HF (%)": round(pct_hf, 1) if pct_hf else None,
             "Self-rep stroke (%)": round(pct_str, 1) if pct_str else None,
         })
-    return pd.DataFrame(rows).set_index("Stratum").T
+    t = pd.DataFrame(rows).set_index("Stratum").T
+    t.index.name = "Characteristic"
+    return t
 
 
 def table2_perf(metrics, sg):
     """Table 2: full performance metrics summary."""
     rows = [
-        ("Discrimination — AUROC", f"{metrics['auroc']:.3f} "
-         f"({metrics['auroc_per_fold_min']:.3f}–{metrics['auroc_per_fold_max']:.3f})"),
-        ("Discrimination — AUPRC", f"{metrics['auprc']:.3f}"),
-        ("Calibration — Brier score", f"{metrics['brier']:.3f}"),
-        ("Calibration — slope", f"{metrics['calibration_slope']:.3f}"),
-        ("Calibration — intercept", f"{metrics['calibration_intercept']:+.3f}"),
+        ("Discrimination — AUROC (95% CI)",
+         f"{metrics['auroc']:.3f} ({_ci(metrics['auroc_ci'])})"),
+        ("Discrimination — AUROC, per-fold range",
+         f"{metrics['auroc_per_fold_min']:.3f}–{metrics['auroc_per_fold_max']:.3f}"),
+        ("Discrimination — AUPRC (95% CI)",
+         f"{metrics['auprc']:.3f} ({_ci(metrics['auprc_ci'])})"),
+        ("Overall accuracy — Brier score (95% CI)",
+         f"{metrics['brier']:.3f} ({_ci(metrics['brier_ci'])})"),
+        ("Calibration — logistic slope (95% CI)",
+         f"{metrics['logistic_calibration_slope']:.3f} "
+         f"({_ci(metrics['logistic_calibration_slope_ci'])})"),
+        ("Calibration — in-the-large (95% CI)",
+         f"{metrics['calibration_in_the_large']:+.3f} "
+         f"({_ci(metrics['calibration_in_the_large_ci'])})"),
+        ("Calibration — decile slope (95% CI)",
+         f"{metrics['calibration_slope']:.3f} ({_ci(metrics['calibration_slope_ci'])})"),
         ("Operating point threshold", f"{metrics['operating_threshold_for_90pct_spec']:.3f}"),
-        ("Sensitivity @ 90% spec", f"{metrics['sensitivity_at_90pct_spec']*100:.1f}%"),
+        ("Sensitivity @ 90% spec (95% CI)",
+         f"{metrics['sensitivity_at_90pct_spec']*100:.1f}% "
+         f"({_ci(metrics['sensitivity_ci'], pct=True)})"),
         ("Subgroup AUROC — minimum", f"{sg['auroc'].dropna().min():.3f}"),
         ("Subgroup AUROC — maximum", f"{sg['auroc'].dropna().max():.3f}"),
         ("N analytic cohort", f"{metrics['n']:,}"),
@@ -377,7 +379,8 @@ def table3_confusion(cohort, metrics):
     cm = pd.DataFrame({
         "Pred: no CKD": [round(tn / 1e6, 3), round(fn / 1e6, 3)],
         "Pred: CKD":    [round(fp / 1e6, 3), round(tp / 1e6, 3)],
-    }, index=["Actual: no CKD (millions wt)", "Actual: CKD (millions wt)"])
+    }, index=pd.Index(["Actual: no CKD (millions wt)", "Actual: CKD (millions wt)"],
+                      name="Actual \\ Predicted"))
     summary = pd.DataFrame([
         ("Operating threshold", round(op, 3)),
         ("Sensitivity (recall)", round(sens, 3)),
@@ -389,21 +392,13 @@ def table3_confusion(cohort, metrics):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
+def _ci(bounds, pct=False):
+    lo, hi = bounds
+    return f"{lo*100:.1f}–{hi*100:.1f}%" if pct else f"{lo:.3f}–{hi:.3f}"
+
+
 def cohort_weights(oof):
     return oof["mec_weight"].values if "mec_weight" in oof.columns else None
-
-
-def subset_by_label(oof, label):
-    """Return the subset of oof for a given subgroup label."""
-    if label.startswith("Age <50"):    return oof[oof["age"] < 50]
-    if label == "Age 50-64":            return oof[(oof["age"] >= 50) & (oof["age"] < 65)]
-    if label.startswith("Age ≥65"):     return oof[oof["age"] >= 65]
-    if label == "Female":               return oof[oof["sex"] == 2]
-    if label == "Male":                 return oof[oof["sex"] == 1]
-    race_map = {"Mexican American": 1, "Other Hispanic": 2, "NH White": 3,
-                "NH Black": 4, "NH Asian": 6, "Other/Multi": 7}
-    if label in race_map:               return oof[oof["race_eth"] == race_map[label]]
-    return oof.iloc[:0]
 
 
 # ── Main ─────────────────────────────────────────────────────────────────
@@ -441,10 +436,6 @@ if __name__ == "__main__":
     cm_df.to_csv(os.path.join(TBL, "table3a_confusion_matrix.csv"))
     op_df.to_csv(os.path.join(TBL, "table3b_operating_metrics.csv"), index=False)
     print("  ✓ table3a_confusion_matrix.csv + table3b_operating_metrics.csv")
-
-    # Save subgroup-with-CIs for reference
-    sg_with_ci.to_csv(os.path.join(OUT, "stage2_subgroup_auroc_with_ci.csv"),
-                       index=False)
 
     print("\n" + "=" * 64)
     print(f"Figures → {FIG}")

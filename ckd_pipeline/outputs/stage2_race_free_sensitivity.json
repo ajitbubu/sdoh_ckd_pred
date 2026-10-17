@@ -1,0 +1,35 @@
+{
+  "auroc_race_free": 0.7663,
+  "auroc_with_race": 0.7724,
+  "delta_with_minus_free": 0.0062,
+  "delta_ci": [
+    0.0024,
+    0.0099
+  ],
+  "by_race_eth": {
+    "Mexican American": {
+      "with_race": 0.6997,
+      "race_free": 0.6959
+    },
+    "Other Hispanic": {
+      "with_race": 0.7411,
+      "race_free": 0.733
+    },
+    "NH White": {
+      "with_race": 0.7752,
+      "race_free": 0.7746
+    },
+    "NH Black": {
+      "with_race": 0.77,
+      "race_free": 0.7574
+    },
+    "NH Asian": {
+      "with_race": 0.7806,
+      "race_free": 0.7609
+    },
+    "Other/Multi": {
+      "with_race": 0.8145,
+      "race_free": 0.8071
+    }
+  }
+}

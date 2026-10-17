@@ -1,0 +1,12 @@
+predictor,n_missing,pct_missing
+age,0,0.0
+sex,0,0.0
+race_eth,0,0.0
+pir,2050,13.5
+bmi,250,1.7
+sbp,1105,7.3
+dbp,1105,7.3
+htn_self,16,0.1
+dm_self,479,3.2
+hf_self,712,4.7
+stroke_self,708,4.7

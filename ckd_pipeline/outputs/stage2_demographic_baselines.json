@@ -1,0 +1,62 @@
+{
+  "model": "L2 logistic regression, same folds/spec as comparator",
+  "age_sex": {
+    "features": [
+      "age",
+      "sex"
+    ],
+    "auroc": 0.7284,
+    "auroc_ci": [
+      0.7171,
+      0.7405
+    ]
+  },
+  "demographics_bmi": {
+    "features": [
+      "age",
+      "sex",
+      "race_eth",
+      "pir",
+      "bmi"
+    ],
+    "auroc": 0.7481,
+    "auroc_ci": [
+      0.7355,
+      0.7622
+    ]
+  },
+  "full": {
+    "features": [
+      "age",
+      "sex",
+      "race_eth",
+      "pir",
+      "bmi",
+      "sbp",
+      "dbp",
+      "htn_self",
+      "dm_self",
+      "hf_self",
+      "stroke_self"
+    ],
+    "auroc": 0.7783,
+    "auroc_ci": [
+      0.7638,
+      0.7934
+    ]
+  },
+  "delta_full_minus_age_sex": {
+    "estimate": 0.0499,
+    "ci": [
+      0.0428,
+      0.0574
+    ]
+  },
+  "delta_full_minus_demographics_bmi": {
+    "estimate": 0.0302,
+    "ci": [
+      0.0242,
+      0.036
+    ]
+  }
+}

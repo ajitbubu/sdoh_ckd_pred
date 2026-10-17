@@ -273,8 +273,10 @@ def calibration_deciles(y, p, w, n_bins=10):
     sort_idx = np.argsort(p)
     cum_w = np.cumsum(w[sort_idx])
     total_w = cum_w[-1]
+    # Interior edges only; the outer edges below close the first and last
+    # deciles (an edge at p.max() would split off a 1-person 11th bin).
     bin_edges = [p[sort_idx][np.searchsorted(cum_w, total_w * q / n_bins)]
-                  for q in range(1, n_bins + 1)]
+                  for q in range(1, n_bins)]
     bin_edges = sorted(set([p.min() - 1e-9] + bin_edges + [p.max() + 1e-9]))
     bins = np.digitize(p, bin_edges) - 1
     rows = []

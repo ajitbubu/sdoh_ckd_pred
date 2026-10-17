@@ -1,0 +1,14 @@
+{
+  "m": 5,
+  "method": "IterativeImputer(sample_posterior=True) fit within each training fold",
+  "auroc_per_imputation": [
+    0.7724,
+    0.7741,
+    0.7724,
+    0.7764,
+    0.7726
+  ],
+  "auroc_mean": 0.7736,
+  "auroc_native_missing": 0.7724,
+  "delta_vs_native": 0.0012
+}

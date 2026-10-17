@@ -1,0 +1,21 @@
+{
+  "lr_spec": "L2 logistic regression, C=1.0, balanced class weights, median imputation + standardization inside each fold, race/ethnicity one-hot; MEC weights; same 5 folds as XGBoost",
+  "auroc_lr": 0.7783,
+  "auroc_lr_ci": [
+    0.7638,
+    0.7934
+  ],
+  "auroc_xgb": 0.7724,
+  "delta_auroc": -0.0059,
+  "delta_auroc_ci": [
+    -0.0132,
+    0.0016
+  ],
+  "delta_auroc_boot_p_two_sided": 0.112,
+  "delong_unweighted": {
+    "auroc_xgb": 0.7758,
+    "auroc_lr": 0.7773,
+    "z": -0.539,
+    "p": 0.59
+  }
+}

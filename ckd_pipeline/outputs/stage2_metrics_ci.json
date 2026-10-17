@@ -1,0 +1,40 @@
+{
+  "ci_method": "Rao-Wu rescaled bootstrap over SDMVPSU within SDMVSTRA, 1000 replicates, MEC weights, fixed OOF predictions",
+  "auroc": 0.7724,
+  "auroc_ci": [
+    0.7579,
+    0.787
+  ],
+  "auprc": 0.4017,
+  "auprc_ci": [
+    0.3744,
+    0.433
+  ],
+  "brier": 0.1023,
+  "brier_ci": [
+    0.0963,
+    0.1088
+  ],
+  "calibration_slope": 0.815,
+  "calibration_slope_ci": [
+    0.766,
+    0.8667
+  ],
+  "calibration_intercept": 0.0294,
+  "logistic_calibration_slope": 0.7513,
+  "logistic_calibration_slope_ci": [
+    0.703,
+    0.8034
+  ],
+  "calibration_in_the_large": 0.0045,
+  "calibration_in_the_large_ci": [
+    -0.0015,
+    0.011
+  ],
+  "threshold_90pct_spec": 0.2915,
+  "sensitivity_at_90pct_spec": 0.4492,
+  "sensitivity_ci": [
+    0.4169,
+    0.4818
+  ]
+}

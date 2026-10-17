@@ -1,3 +1,3 @@
-,Pred: no CKD,Pred: CKD
-Actual: no CKD (millions wt),192.638,21.353
-Actual: CKD (millions wt),18.908,15.716
+Actual \ Predicted,Pred: no CKD,Pred: CKD
+Actual: no CKD (millions wt),192.708,21.283
+Actual: CKD (millions wt),19.08,15.544
