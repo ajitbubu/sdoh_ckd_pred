@@ -175,18 +175,22 @@ The model is **overconfident at high risk**: the top decile predicts 0.56 agains
 
 ### B3. Stage 1 text contradicted Stage 1 figures
 
-The Stage 1 figures embedded in v5 (whose internal table says `ADI source: real_neighborhood_atlas`) are taken as the authoritative record of the real-ADI run. The v5 text disagreed with them:
+The Stage 1 figures embedded in v5 (whose internal table says `ADI source: real_neighborhood_atlas`) were initially taken as the record of the real-ADI run. The v5 text disagreed with them.
 
-| Item | v5 text | v5 figures (now used in v6) |
-|---|---|---|
-| Tracts | 60,445 | **60,945** |
-| Cross-validated R² | 0.450 ± 0.006 | **0.444 ± 0.009** |
-| MAE | 0.447 | **0.452** |
-| Calibration slope / intercept | 0.97 / 0.04 | **0.997 / 0.009** |
-| Leave-one-region-out R² range | 0.239 (West) to 0.415 | **0.232 (Northeast)** to 0.415; West 0.247 |
-| Capacity sweep | R² varies <0.005 | 0.439–0.445 (**range 0.006**) |
-| ADI quintile gradient | ~2.6% → ~3.4% | **2.45% → 3.90%** |
-| RMSE 0.628 | stated | not in any figure or output; removed |
+**Update: Stage 1 has now been re-run** from the committed code with the Neighborhood Atlas v4.0.1 block-group file. The rerun reproduces the v5 figures to within rounding, and the manuscript, Figures 1–7, and both response documents now use the rerun values. The final column below gives the rerun values.
+
+| Item | v5 text | v5 figures | v6 (rerun, final) |
+|---|---|---|---|
+| Tracts | 60,445 | 60,945 | **60,945** |
+| Cross-validated R² | 0.450 ± 0.006 | 0.444 ± 0.009 | **0.445 ± 0.008** |
+| MAE | 0.447 | 0.452 | **0.452** |
+| Calibration slope / intercept | 0.97 / 0.04 | 0.997 / 0.009 | **0.998 / 0.007** |
+| Leave-one-region-out R² | 0.239 (West) to 0.415 | 0.232 (Northeast) to 0.415; West 0.247 | **0.232 (Northeast) to 0.416; West 0.251** |
+| Capacity sweep | R² varies <0.005 | 0.439–0.445 | **0.440–0.445** |
+| ADI quintile gradient | ~2.6% → ~3.4% | ~2.45% → ~3.90% | **2.45, 2.60, 2.83, 3.20, 3.90% (1.6×)** |
+| Spearman ρ | 0.71 | not shown | **0.675** |
+| Feature importance | quintile ≈ national rank | quintile 17.6, natrank 17.4 | **natrank 21.4, quintile 10.9** (quintile is derived from national rank, so the split is arbitrary) |
+| RMSE 0.628 | stated | not shown | 0.63 (not reported in v6) |
 
 ### B4. Stage 1 analyses claimed in v5 that do not exist (removed from v6)
 
@@ -194,8 +198,8 @@ None of the following has code in the repository, so all were removed:
 
 - The crosswalk boundary-misalignment analysis (~12,400 tracts recovered, ΔR² <0.01, KS P=.18): Supplementary Table S1.
 - The three feature ablations (R² 0.468 / 0.472 / 0.488): Supplementary Table S2.
-- Spearman ρ = 0.71.
-- "28% of ADI tracts failed the join". The 16% figure for PLACES was verified: 72,337 − 60,945 = 11,392 = 15.7%.
+- Spearman ρ = 0.71. Now computed by code: ρ = 0.675 (reported in v6).
+- "28% of ADI tracts failed the join". **Verified by the rerun** (24,450 of 85,395 = 28.6%) and restored in v6, together with the 16% figure for PLACES (72,337 − 60,945 = 11,392 = 15.7%).
 - "Population-weighted mean" aggregation: the code uses an **unweighted** mean, and v6 describes it accurately.
 
 If you want any of these analyses back, they must be implemented and run first. The crosswalk analysis is mentioned in v6 only as a suggested next step in the Limitations.
@@ -229,7 +233,7 @@ Re-running the unchanged training script with the versions stated in the paper (
 
 ## Part C. Remaining author actions before resubmission
 
-1. **Re-run Stage 1 with the real ADI file (high priority).** v6 reports Stage 1 values from the v5 figures, but the repository cannot currently regenerate them. Download the Neighborhood Atlas 2020 national block-group CSV to `ckd_pipeline/data/raw/adi_2020_national_blockgroup.csv`, then run `python src/fetch_places.py`, `python src/train_ecological_model.py`, and `python src/generate_ecological_figures.py`. Confirm that `outputs/stage1_metrics.json` shows `adi_source: real_neighborhood_atlas` and that the numbers match the manuscript (R² 0.444, n 60,945, and so on). The loader was fixed to handle the real file format (see Part D). If the numbers differ, update the manuscript and copy the new figures into `figures_phs/stage1_real_adi/`.
+1. ~~Re-run Stage 1 with the real ADI file.~~ **Done.** It was re-run with Neighborhood Atlas v4.0.1 (`data/raw/adi_2020_national_blockgroup.csv`, copied to `ckd_pipeline/data/raw/`; both locations are gitignored, as the data use agreement requires). Figures 1–7 were regenerated, and the manuscript was updated with the rerun values.
 2. **Confirm** SM's affiliation, COI, and CRediT roles (A11, A12), and any institutional policy citation for the ethics exemption (A4).
 3. **Transfer preferences** (A15).
 4. **Correct the earlier "no generative AI" attestation** in the response letter (A14).
@@ -250,7 +254,7 @@ Re-running the unchanged training script with the versions stated in the paper (
 | `src/generate_stage2_figures.py` | Uses design-based CIs (Figures 8, 10, 11, 13; Table 2); Figure 11 adds PIR groups and uses the shared design-based CIs (previously 500 iid resamples, while v5 claimed 1,000); fixed "95% per-fold range" mislabel; fixed "Unnamed: 0" table headers; removed the now-unused `subset_by_label` |
 | `src/train_ecological_model.py` | Real-ADI loader now coerces Neighborhood Atlas suppression codes (GQ, PH, …) to missing and derives the quintile from the national rank when the file has no quintile column; previously it would fail on the public file |
 | `src/build_v6_docx.py` (new) | Builds the clean and highlighted .docx from the Markdown source, numbering citations by first appearance |
-| `figures_phs/stage1_real_adi/` (new) | Real-ADI Stage 1 figures recovered from the v5 .docx; the `figures_phs/fig01–07` files in the repo are placeholder-ADI renders and must not be used |
+| `figures_phs/fig01–07`, `ckd_pipeline/outputs/stage1_*` | Regenerated from the real-ADI rerun (previously placeholder renders). The temporary `stage1_real_adi/` copies taken from the v5 .docx were removed |
 
 **Reproducing Stage 2 (verified):**
 

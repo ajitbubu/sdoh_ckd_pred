@@ -65,9 +65,9 @@ The paragraph also notes that the convention somewhat overestimates persistent C
   - under-ascertainment of CKD in self-report, which may vary with deprivation.
 
 **Draft reply:**
-> We thank the reviewer for catching this. The quintile values in the previous text were incorrect and did not match Figure 5. The observed PLACES prevalence by ADI quintile is approximately 2.45%, 2.60%, 2.83%, 3.20%, and 3.90%, a 1.6-fold gradient, within the 1.5- to 2.0-fold range cited, and the model's predicted means are virtually identical. We now report observed and predicted values for every quintile in the Results. Because predicted and observed quintile means coincide, model shrinkage does not attenuate the gradient. In the Discussion we note that its position at the lower end of the published range more plausibly reflects smoothing in the PLACES small-area estimation, within-tract averaging, and under-ascertainment of CKD in self-report.
+> We thank the reviewer for catching this. The quintile values in the previous text were incorrect and did not match Figure 5. The observed PLACES prevalence by ADI quintile is 2.45%, 2.60%, 2.83%, 3.20%, and 3.90%, a 1.6-fold gradient, within the 1.5- to 2.0-fold range cited, and the model's predicted means are within 0.002 percentage points of observed in every quintile. We now report observed and predicted values for every quintile in the Results. Because predicted and observed quintile means coincide, model shrinkage does not attenuate the gradient. In the Discussion we note that its position at the lower end of the published range more plausibly reflects smoothing in the PLACES small-area estimation, within-tract averaging, and under-ascertainment of CKD in self-report.
 
-**Author check:** The quintile values were read from the bar heights in Figure 5, so the text says "approximately". After re-running Stage 1 with the real ADI file, take the exact values from `ckd_pipeline/outputs/stage1_predictions_by_quintile.csv`.
+**Resolved:** Exact values confirmed by the Stage 1 rerun with the real ADI file (`ckd_pipeline/outputs/stage1_predictions_by_quintile.csv`).
 
 ### Comment 4: Qualify "suitable for population-health deployment" in the Abstract and Conclusions with region-stratified recalibration
 
@@ -118,23 +118,17 @@ The new values appear in the Methods, in the Results, and in two new rows of Tab
 
 ### Comment 8: Why Spearman (0.71) exceeds R² (0.45)
 
-**Change:** The Spearman value in the previous version was not produced by the archived code and has been removed (see the opening paragraph). `src/train_ecological_model.py` now computes `spearman_rho_oof` on the out-of-fold predictions and writes it to `outputs/stage1_metrics.json`, so the value will be available when Stage 1 is re-run with the real ADI file.
+**Change:** The 0.71 in the previous version was not produced by the archived code. `src/train_ecological_model.py` now computes the Spearman correlation on out-of-fold predictions. Re-running Stage 1 with the real ADI file gives **ρ = 0.675**, which is now reported in the Results with an explanation. My earlier draft explanation, that the model compresses extreme tracts, was not the main reason and has been dropped. The main reason is scale: R² is a squared quantity, and √0.445 = 0.667 ≈ ρ.
 
-**Two options for the authors:**
-
-- **(a) Recommended, if you re-run Stage 1 before resubmission.** Add the value back to Results › Stage 1 with this explanation (fill in ρ):
-  > *The Spearman rank correlation between out-of-fold predicted and observed tract prevalence was ρ=[value]. Rank correlation exceeds R² because it measures only whether tracts are ordered correctly, whereas R² also penalizes the distance between predicted and observed values; the model compresses extreme tracts toward the mean (Figure 1), which lowers R² more than it lowers rank agreement. For prioritizing tracts, rank agreement is the more relevant measure.*
-- **(b) If you do not re-run.** Use the reply below.
-
-**Draft reply (option b):**
-> We thank the reviewer for this point. On re-auditing the code for this revision we found that the Spearman correlation reported previously was not produced by the released pipeline, so we have removed it. The Stage 1 script now computes rank correlation on out-of-fold predictions. Conceptually, rank correlation exceeds R² because it measures only whether tracts are correctly ordered, whereas R² also penalizes the distance between predicted and observed values, and the model compresses extreme tracts toward the mean.
+**Draft reply:**
+> We thank the reviewer for this question, and we must first correct the value. The Spearman correlation of 0.71 reported previously was not produced by the released code. Re-running Stage 1 from the released code, the Spearman correlation between out-of-fold predicted and observed tract prevalence is 0.67, and we now report this value in the Results. The two statistics are not contradictory. R² is on a squared scale, and the square root of the cross-validated R² (0.445) is 0.67, close to the rank correlation. Rank correlation is the more directly relevant measure when the model is used to order tracts for prioritization, and we now say so in the Results.
 
 ### Comment 9: Leave-one-region-out values and the Figure 3 caption
 
-**Change:** The previous text and caption were inconsistent with each other and with the figure. Figure 3 and Figure 7 show the Northeast as the minimum (0.232), not the West (0.247). The v6 Results now state all four values, Northeast 0.232, Midwest 0.409, South 0.415, and West 0.247, with the four calibration slopes (0.69, 0.91, 1.14, 0.81). The Figure 3 caption no longer repeats rounded values. Figure 7 lists all four regional R² values.
+**Change:** The previous text and caption were inconsistent with each other and with the figure. The Stage 1 rerun and the regenerated Figures 3 and 7 show the Northeast as the minimum (0.232), not the West (0.251). The v6 Results now state all four values, Northeast 0.232, Midwest 0.409, South 0.416, and West 0.251, with the four calibration slopes (0.69, 0.90, 1.14, 0.81). The Figure 3 caption no longer repeats rounded values. Figure 7 lists all four regional R² values.
 
 **Draft reply:**
-> Thank you. The previous text misidentified the lowest region. Figures 3 and 7 show R²=0.232 for the Northeast and 0.247 for the West. The Results now state all four regional R² values (Northeast 0.232, Midwest 0.409, South 0.415, West 0.247) and calibration slopes, and Figure 7 tabulates them.
+> Thank you. The previous text misidentified the lowest region. Re-running Stage 1 from the released code gives R²=0.232 for the Northeast and 0.251 for the West. The Results now state all four regional R² values (Northeast 0.232, Midwest 0.409, South 0.416, West 0.251) and calibration slopes, and Figure 7, regenerated from the same run, tabulates them.
 
 ### Comment 10 (note): Registration-gated ADI file
 
@@ -151,6 +145,6 @@ The new values appear in the Methods, in the Results, and in two new rows of Tab
 |---|---|
 | `ckd_pipeline/outputs/stage2_demographic_baselines.json` | Comment 7: nested LR baselines with design-based CIs |
 | `ckd_pipeline/outputs/stage2_unreported_hypertension.json` | Comment 5: measured hypertension among adults reporting no diagnosis, by PIR |
-| `stage1_metrics.json → spearman_rho_oof` | Comment 8: produced on the next Stage 1 run with the real ADI file |
+| `stage1_metrics.json → spearman_rho_oof` | Comment 8: ρ = 0.675 from the real-ADI rerun |
 
 New references added to the manuscript: Murphy et al 2016 (PMID 27479614) and Coresh et al 2007 (PMID 17986697), both verified in PubMed.

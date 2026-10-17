@@ -12,7 +12,7 @@ Thank you for the opportunity to revise our manuscript, and thank you and Review
 
 - **Model comparison.** The previously reported advantage of XGBoost over logistic regression was not supported. On identical cross-validation folds the two models do not differ (AUROC 0.772 vs 0.778; difference −0.006, 95% CI −0.013 to 0.002).
 - **Calibration.** A binning error in our calibration routine overstated calibration. The corrected logistic calibration slope is 0.75 (95% CI 0.70–0.80), which we now report, interpret, and discuss.
-- **Stage 1 values.** Several Stage 1 values in the text did not match the figures generated from the Area Deprivation Index data, and they have been aligned with them.
+- **Stage 1 values.** Several Stage 1 values in the text did not match the figures generated from the Area Deprivation Index data. We re-ran Stage 1 from the released code with the Neighborhood Atlas file, regenerated Figures 1–7, and report the resulting values throughout.
 - **Withdrawn analyses.** Supplementary analyses we described but had not completed (the Census-crosswalk sensitivity analysis, the feature ablations, and a Spearman correlation), references to a prospective evaluation protocol and an archived data snapshot, and the statement that race/ethnicity was not a model predictor (it is) have been removed or corrected.
 - **Confidence intervals.** All confidence intervals are now design-based. They are estimated with a Rao–Wu bootstrap that resamples NHANES primary sampling units within strata.
 
@@ -120,7 +120,7 @@ We have added an Ethical Considerations subsection. It reports the NCHS Research
 We agree and have made this explicit in the Methods. The single-measurement eGFR/UACR definition is the convention used for national CKD prevalence estimates from NHANES, including by the CDC CKD Surveillance System (Murphy et al, Ann Intern Med 2016; Coresh et al, JAMA 2007; CDC 2023). We cite these papers and note that the convention somewhat overestimates persistent CKD, because albuminuria measured once can be transient.
 
 **AS3. ADI quintile gradient.**
-We thank the reviewer for catching this. The quintile values in the previous text were incorrect and did not match Figure 5. Observed CDC PLACES prevalence by ADI quintile is [PENDING: exact Q1–Q5 values from the Stage 1 rerun], a [PENDING]-fold gradient, within the 1.5- to 2.0-fold range cited. The model's predicted means are virtually identical to the observed means.
+We thank the reviewer for catching this. The quintile values in the previous text were incorrect and did not match Figure 5. Observed CDC PLACES prevalence by ADI quintile is 2.45%, 2.60%, 2.83%, 3.20%, and 3.90%, a 1.6-fold gradient, within the 1.5- to 2.0-fold range cited. The model's predicted means are within 0.002 percentage points of the observed means in every quintile.
 
 We now report observed and predicted values for every quintile in the Results. Because predicted and observed quintile means coincide, model shrinkage does not attenuate the gradient. In the Discussion we note that the gradient's position at the lower end of the published range more plausibly reflects smoothing in the PLACES small-area estimation, averaging of individual risk within tracts, and under-ascertainment of CKD in self-report.
 
@@ -137,10 +137,10 @@ The statement reflected an informal impression rather than a systematic search, 
 Thank you for this helpful suggestion, which we have adopted. Logistic regression with age and sex alone achieves an AUROC of 0.728 (95% CI 0.717–0.741). Adding race/ethnicity, income-to-poverty ratio, and BMI gives 0.748 (0.736–0.762), and the full model gives 0.778 (0.764–0.793). Blood pressure and the self-reported conditions therefore add 0.030 (95% CI 0.024–0.036) beyond demographics and BMI. We report this in the Results and in Table 2, and note that much of the discrimination comes from age.
 
 **AS8. Spearman correlation versus R².**
-[PENDING: replace with the option (a) or (b) text after the Stage 1 rerun.] If the rerun completes, report "ρ=[value]" with the explanation in `JMIR_PHS_v6_Response_to_Reviewer_AS.md`, comment 8, option (a).
+We thank the reviewer for this question, and we must first correct the value. The Spearman correlation of 0.71 reported previously was not produced by the released code. Re-running Stage 1 from the released code, the Spearman correlation between out-of-fold predicted and observed tract prevalence is 0.67, and we now report this value in the Results. The two statistics are not contradictory. R² is on a squared scale, and the square root of the cross-validated R² (0.445) is 0.67, close to the rank correlation. Rank correlation is the more directly relevant measure when the model is used to order tracts for prioritization, and we now say so in the Results.
 
 **AS9. Regional R² values.**
-Thank you. The previous text misidentified the lowest region. Figures 3 and 7 show R²=0.232 for the Northeast and 0.247 for the West. The Results now state all four regional R² values (Northeast 0.232, Midwest 0.409, South 0.415, West 0.247) and the corresponding calibration slopes, and Figure 7 tabulates them.
+Thank you. The previous text misidentified the lowest region. Re-running Stage 1 from the released code gives R²=0.232 for the Northeast and 0.251 for the West. The Results now state all four regional R² values (Northeast 0.232, Midwest 0.409, South 0.416, West 0.251) and the corresponding calibration slopes, and Figure 7, regenerated from the same run, tabulates them.
 
 **AS10. ADI data access.**
 We appreciate this note. The Data Availability section now explains how to obtain the ADI file. We have also made the pipeline's handling of the public Neighborhood Atlas file format more robust, so that independent replication is straightforward once the file has been downloaded.

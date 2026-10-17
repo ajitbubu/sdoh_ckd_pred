@@ -265,6 +265,9 @@ def calibration_report(df):
 
 
 def predictions_by_quintile(df):
+    # Tracts whose block groups are all ADI-suppressed (GQ/PH/QDI) have no
+    # quintile; they stay in the model (XGBoost handles NaN) but not here.
+    df = df[df["adi_quintile"].notna()]
     return (df.groupby(df["adi_quintile"].round().astype(int))
               .agg(predicted=("oof_pred", "mean"),
                    observed=(TARGET, "mean"),
