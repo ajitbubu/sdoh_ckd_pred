@@ -94,7 +94,7 @@ def fig1_parity(oof, metrics, is_placeholder):
     ax.set_xlim(lim_lo, lim_hi); ax.set_ylim(lim_lo, lim_hi)
     ax.set_xlabel("CDC PLACES observed CKD prevalence (%)")
     ax.set_ylabel("Model-predicted CKD prevalence (%)")
-    ax.set_title("Figure 1. Tract-level parity plot",
+    ax.set_title("Tract-level parity plot",
                  loc="left", fontsize=12, fontweight="bold", pad=18)
     ax.legend(loc="lower right", frameon=True, fontsize=9)
     fig.text(0.02, 0.02,
@@ -123,7 +123,7 @@ def fig2_calibration(cal, metrics, is_placeholder):
     ax.set_xlim(0, lim); ax.set_ylim(0, lim)
     ax.set_xlabel("Mean predicted CKD prevalence (%)")
     ax.set_ylabel("Observed CKD prevalence (%)")
-    ax.set_title("Figure 2. Stage 1 calibration plot (deciles)",
+    ax.set_title("Stage 1 calibration plot (deciles)",
                  loc="left", fontsize=12, fontweight="bold", pad=18)
     ax.legend(loc="upper left", frameon=True, fontsize=9)
     fig.text(0.02, 0.02,
@@ -152,7 +152,7 @@ def fig3_loro(loro, is_placeholder):
             ax.text(b.get_x() + b.get_width()/2, b.get_height() + 0.02,
                      f"{v:.3f}", ha="center", fontsize=9)
 
-    fig.suptitle("Figure 3. Leave-one-Census-region-out cross-validation",
+    fig.suptitle("Leave-one-Census-region-out cross-validation",
                   fontsize=13, fontweight="bold", x=0.07, ha="left", y=1.02)
     fig.savefig(os.path.join(FIG, "fig03_loro_panels.png"))
     plt.close(fig)
@@ -172,7 +172,7 @@ def fig4_capacity(capacity, is_placeholder):
         ax.text(b.get_x() + b.get_width()/2, b.get_height() + 0.005,
                  f"{v:.3f}", ha="center", fontsize=9)
     ax.set_ylabel("Cross-validated R² (mean ± SD across 5 folds)")
-    ax.set_title("Figure 4. XGBoost capacity sensitivity sweep",
+    ax.set_title("Cross-validated R² across 5 XGBoost configurations",
                   loc="left", fontsize=12, fontweight="bold", pad=18)
     ax.set_ylim(min(capacity["r2_mean"].min() - 0.05, -0.05),
                  max(capacity["r2_mean"].max() + 0.1, 0.55))
@@ -196,7 +196,7 @@ def fig5_adi_gradient(quintile, is_placeholder):
                           for q, n in zip(quintile["ADI_quintile"], quintile["n"])])
     ax.set_xlabel("ADI quintile (1 = least deprived, 5 = most deprived)")
     ax.set_ylabel("Mean tract CKD prevalence (%)")
-    ax.set_title("Figure 5. CKD prevalence by ADI quintile",
+    ax.set_title("CKD prevalence by ADI quintile",
                   loc="left", fontsize=12, fontweight="bold", pad=18)
     ax.legend(loc="upper left", frameon=True, fontsize=9)
     fig.savefig(os.path.join(FIG, "fig05_adi_quintile.png"))
@@ -215,7 +215,7 @@ def fig6_importance(feat, is_placeholder):
         ax.text(b.get_width() * 1.01, b.get_y() + b.get_height()/2,
                  f"{v:.1f}", va="center", fontsize=10)
     ax.set_xlabel("XGBoost gain importance")
-    ax.set_title("Figure 6. ADI feature gain importance",
+    ax.set_title("ADI feature gain importance",
                   loc="left", fontsize=12, fontweight="bold", pad=18)
     fig.savefig(os.path.join(FIG, "fig06_feature_importance.png"))
     plt.close(fig)
@@ -262,7 +262,7 @@ def fig7_perf_matrix(metrics, loro, is_placeholder):
         elif k[0] % 2 == 1:
             c.set_facecolor("#f4f4f4")
         c.set_edgecolor("#cccccc")
-    ax.set_title("Figure 7. Stage 1 ecological model performance matrix",
+    ax.set_title("Stage 1 ecological model performance matrix",
                   loc="left", fontsize=12, fontweight="bold", pad=18)
     fig.savefig(os.path.join(FIG, "fig07_performance_matrix.png"))
     plt.close(fig)

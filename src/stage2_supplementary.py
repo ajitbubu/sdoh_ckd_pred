@@ -10,8 +10,8 @@ out-of-fold XGBoost predictions.
      (SDMVPSU) within masked variance strata (SDMVSTRA), using MEC weights.
      Out-of-fold predictions are held fixed, so the CIs reflect sampling
      uncertainty of the evaluation sample.
-  2. Comparator: L2 logistic regression on the identical feature set and
-     CV folds; ΔAUROC with design-based CI, plus DeLong's test.
+  2. (Moved) The logistic regression comparison is in
+     src/stage2_model_comparison.py.
   3. Missing data: per-predictor missingness and a multiple-imputation
      (chained equations, m=5) sensitivity analysis, imputing inside each
      training fold only.
@@ -21,16 +21,27 @@ out-of-fold XGBoost predictions.
      the incremental value of blood pressure and self-reported conditions.
   7. Self-report bias check: measured hypertension among adults reporting
      no hypertension diagnosis, by income-to-poverty ratio.
+  8. Subgroup sensitivity/specificity/PPV/NPV at the deployed threshold and
+     subgroup calibration (calibration-in-the-large, logistic slope).
+  9. Outcome-component completeness (creatinine and/or UACR) and
+     performance restricted to participants with both.
+ 10. CKD awareness (self-reported vs measured CKD) by income-to-poverty ratio.
+Calibration also includes the logistic intercept, a flexible spline
+calibration curve with design-based pointwise CIs, ICI/E50/E90, and the
+Brier skill score.
 
 Outputs (ckd_pipeline/outputs/):
   stage2_metrics_ci.json
   stage2_subgroup_auroc_with_ci.csv
-  stage2_comparator_lr.json
   tableS3_missingness.csv, stage2_mi_sensitivity.json
   tableS4_operating_points.csv
   stage2_race_free_sensitivity.json
   stage2_demographic_baselines.json
   stage2_unreported_hypertension.json
+  stage2_calibration_flexible.csv, tableS5_subgroup_operating.csv
+  stage2_outcome_components.json, stage2_ckd_awareness.json
+(The XGBoost vs logistic regression comparison is in
+src/stage2_model_comparison.py.)
 """
 
 import os
@@ -41,7 +52,6 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from scipy import stats
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.compose import make_column_transformer
@@ -112,6 +122,52 @@ def logistic_calibration(y, p, w):
     return float(fit.coef_[0, 0]), citl
 
 
+def _logit(p):
+    p = np.clip(p, 1e-6, 1 - 1e-6)
+    return np.log(p / (1 - p))
+
+
+def logistic_intercept(y, p, w):
+    """Calibration intercept: a in logit(P(y=1)) = a + logit(p), i.e. logit(p)
+    as an offset with slope fixed at 1 (weighted, solved by Newton)."""
+    lp, a = _logit(p), 0.0
+    for _ in range(50):
+        mu = 1 / (1 + np.exp(-(a + lp)))
+        step = np.sum(w * (y - mu)) / np.sum(w * mu * (1 - mu))
+        a += step
+        if abs(step) < 1e-10:
+            break
+    return float(a)
+
+
+def brier_skill(y, p, w):
+    """1 − Brier / Brier of the prevalence-only null model."""
+    prev = np.average(y, weights=w)
+    return float(1 - weighted_brier(y, p, w) / (prev * (1 - prev)))
+
+
+CAL_GRID = np.round(np.arange(0.01, 0.81, 0.01), 2)
+
+
+def flexible_calibration(y, p, w):
+    """Flexible calibration curve: weighted logistic regression of y on a
+    cubic spline of logit(p). Returns the smoothed observed risk on CAL_GRID
+    and ICI / E50 / E90 (weighted mean / median / 90th percentile of
+    |smoothed observed − predicted|; Austin & Steyerberg, Stat Med 2019)."""
+    from sklearn.preprocessing import SplineTransformer
+    model = make_pipeline(SplineTransformer(n_knots=4, degree=3),
+                          LogisticRegression(penalty=None, max_iter=2000))
+    model.fit(_logit(p).reshape(-1, 1), y, logisticregression__sample_weight=w)
+    p_cal = model.predict_proba(_logit(p).reshape(-1, 1))[:, 1]
+    err = np.abs(p_cal - p)
+    order = np.argsort(err)
+    cw = np.cumsum(w[order]) / w.sum()
+    return {"curve": model.predict_proba(_logit(CAL_GRID).reshape(-1, 1))[:, 1],
+            "ici": float(np.average(err, weights=w)),
+            "e50": float(err[order][np.searchsorted(cw, 0.5)]),
+            "e90": float(err[order][np.searchsorted(cw, 0.9)])}
+
+
 def ci(values):
     v = np.asarray([x for x in values if x is not None and np.isfinite(x)])
     return [round(float(np.percentile(v, 2.5)), 4),
@@ -121,41 +177,6 @@ def ci(values):
 def sens_at_threshold(y, p, w, thr):
     pos = y == 1
     return float(w[pos & (p >= thr)].sum() / w[pos].sum())
-
-
-# ── DeLong test for two correlated AUROCs (unweighted) ──────────────────
-def _midrank(x):
-    order = np.argsort(x)
-    xs = x[order]
-    n = len(x)
-    ranks = np.empty(n)
-    i = 0
-    while i < n:
-        j = i
-        while j < n and xs[j] == xs[i]:
-            j += 1
-        ranks[i:j] = 0.5 * (i + j - 1) + 1
-        i = j
-    out = np.empty(n)
-    out[order] = ranks
-    return out
-
-
-def delong_test(y, p1, p2):
-    m, n = (y == 1).sum(), (y == 0).sum()
-    v10, v01, aucs = [], [], []
-    for p in (p1, p2):
-        px, py = p[y == 1], p[y == 0]
-        tx, ty, tz = _midrank(px), _midrank(py), _midrank(np.concatenate([px, py]))
-        auc = (tz[:m].sum() - m * (m + 1) / 2) / (m * n)
-        v10.append((tz[:m] - tx) / n)
-        v01.append(1.0 - (tz[m:] - ty) / m)
-        aucs.append(auc)
-    s10, s01 = np.cov(np.vstack(v10)), np.cov(np.vstack(v01))
-    s = s10 / m + s01 / n
-    var = s[0, 0] + s[1, 1] - 2 * s[0, 1]
-    z = (aucs[0] - aucs[1]) / np.sqrt(var)
-    return float(z), float(2 * stats.norm.sf(abs(z))), [float(a) for a in aucs]
 
 
 # ── Comparator: logistic regression on identical features and folds ────
@@ -232,20 +253,18 @@ if __name__ == "__main__":
     # 1. Point estimates + design-based bootstrap CIs
     _, cal_slope, cal_int = calibration_deciles(y, p, w)
     sens, _, thr = sensitivity_at_specificity(y, p, w, 0.90)
-    print("Fitting comparator (logistic regression)...")
-    p_lr = lr_oof(df)
+    p_lr = lr_oof(df)  # full-feature LR, used by the nested baselines (section 6)
 
     print(f"Rao-Wu bootstrap ({N_BOOT} replicates)...")
     reps = rao_wu_replicates(df)
+    flex_curves = []
     boot = {k: [] for k in ["auroc", "auprc", "brier", "cal_slope",
                             "logit_slope", "citl",
-                            "sens_at_op", "auroc_lr", "delta_auroc"]}
+                            "sens_at_op", "logit_int", "bss", "ici", "e50", "e90"]}
     for rw in reps:
         keep = rw > 0
-        yb, pb, wb, plb = y[keep], p[keep], rw[keep], p_lr[keep]
-        a = weighted_auroc(yb, pb, wb)
-        a_lr = weighted_auroc(yb, plb, wb)
-        boot["auroc"].append(a)
+        yb, pb, wb = y[keep], p[keep], rw[keep]
+        boot["auroc"].append(weighted_auroc(yb, pb, wb))
         boot["auprc"].append(weighted_auprc(yb, pb, wb))
         boot["brier"].append(weighted_brier(yb, pb, wb))
         boot["cal_slope"].append(calibration_deciles(yb, pb, wb)[1])
@@ -253,8 +272,12 @@ if __name__ == "__main__":
         boot["logit_slope"].append(ls)
         boot["citl"].append(cl)
         boot["sens_at_op"].append(sens_at_threshold(yb, pb, wb, thr))
-        boot["auroc_lr"].append(a_lr)
-        boot["delta_auroc"].append(a - a_lr)
+        boot["logit_int"].append(logistic_intercept(yb, pb, wb))
+        boot["bss"].append(brier_skill(yb, pb, wb))
+        flex = flexible_calibration(yb, pb, wb)
+        for k in ("ici", "e50", "e90"):
+            boot[k].append(flex[k])
+        flex_curves.append(flex["curve"])
 
     # Subgroup AUROC CIs from the same design-based replicates
     race_map = {1: "Mexican American", 2: "Other Hispanic", 3: "NH White",
@@ -285,7 +308,12 @@ if __name__ == "__main__":
     sg_ci.to_csv(os.path.join(OUT, "stage2_subgroup_auroc_with_ci.csv"), index=False)
 
     auroc = weighted_auroc(y, p, w)
-    auroc_lr = weighted_auroc(y, p_lr, w)
+    flex = flexible_calibration(y, p, w)
+    curves = np.vstack(flex_curves)
+    pd.DataFrame({"predicted": CAL_GRID, "observed_smooth": flex["curve"],
+                  "ci_lower": np.percentile(curves, 2.5, axis=0),
+                  "ci_upper": np.percentile(curves, 97.5, axis=0)}).round(4).to_csv(
+        os.path.join(OUT, "stage2_calibration_flexible.csv"), index=False)
     metrics_ci = {
         "ci_method": "Rao-Wu rescaled bootstrap over SDMVPSU within SDMVSTRA, "
                      f"{N_BOOT} replicates, MEC weights, fixed OOF predictions",
@@ -299,32 +327,20 @@ if __name__ == "__main__":
         "logistic_calibration_slope_ci": ci(boot["logit_slope"]),
         "calibration_in_the_large": round(logistic_calibration(y, p, w)[1], 4),
         "calibration_in_the_large_ci": ci(boot["citl"]),
+        "logistic_calibration_intercept": round(logistic_intercept(y, p, w), 4),
+        "logistic_calibration_intercept_ci": ci(boot["logit_int"]),
+        "ici": round(flex["ici"], 4), "ici_ci": ci(boot["ici"]),
+        "e50": round(flex["e50"], 4), "e50_ci": ci(boot["e50"]),
+        "e90": round(flex["e90"], 4), "e90_ci": ci(boot["e90"]),
+        "brier_null": round(float(np.average(y, weights=w) * (1 - np.average(y, weights=w))), 4),
+        "brier_skill_score": round(brier_skill(y, p, w), 4),
+        "brier_skill_score_ci": ci(boot["bss"]),
         "threshold_90pct_spec": round(thr, 4),
         "sensitivity_at_90pct_spec": round(sens, 4),
         "sensitivity_ci": ci(boot["sens_at_op"]),
     }
     with open(os.path.join(OUT, "stage2_metrics_ci.json"), "w") as f:
         json.dump(metrics_ci, f, indent=2)
-
-    # 2. Comparator
-    z, pval, (auc_x_unw, auc_lr_unw) = delong_test(y, p, p_lr)
-    delta = np.asarray(boot["delta_auroc"])
-    comp = {
-        "lr_spec": "L2 logistic regression, C=1.0, balanced class weights, "
-                   "median imputation + standardization inside each fold, "
-                   "race/ethnicity one-hot; MEC weights; same 5 folds as XGBoost",
-        "auroc_lr": round(auroc_lr, 4), "auroc_lr_ci": ci(boot["auroc_lr"]),
-        "auroc_xgb": round(auroc, 4),
-        "delta_auroc": round(auroc - auroc_lr, 4),
-        "delta_auroc_ci": ci(delta),
-        "delta_auroc_boot_p_two_sided":
-            round(float(2 * min((delta <= 0).mean(), (delta >= 0).mean())), 4),
-        "delong_unweighted": {"auroc_xgb": round(auc_x_unw, 4),
-                              "auroc_lr": round(auc_lr_unw, 4),
-                              "z": round(z, 3), "p": float(f"{pval:.3g}")},
-    }
-    with open(os.path.join(OUT, "stage2_comparator_lr.json"), "w") as f:
-        json.dump(comp, f, indent=2)
 
     # 3. Missingness + MI
     miss = pd.DataFrame({
@@ -414,9 +430,114 @@ if __name__ == "__main__":
     with open(os.path.join(OUT, "stage2_unreported_hypertension.json"), "w") as f:
         json.dump(unaware, f, indent=2)
 
+    # 8. Subgroup performance at the deployed threshold and subgroup
+    #    calibration (AUROC parity alone says nothing about who is missed)
+    print("Subgroup operating metrics and calibration...")
+    flag = p >= thr
+
+    def op_metrics(yy, ff, ww, pp):
+        tp = ww[ff & (yy == 1)].sum(); fn = ww[~ff & (yy == 1)].sum()
+        fp = ww[ff & (yy == 0)].sum(); tn = ww[~ff & (yy == 0)].sum()
+        return {"sensitivity": tp / (tp + fn), "specificity": tn / (tn + fp),
+                "ppv": tp / (tp + fp) if tp + fp > 0 else np.nan,
+                "npv": tn / (tn + fn), "pct_flagged": (tp + fp) / ww.sum() * 100,
+                "observed_prev": np.average(yy, weights=ww) * 100,
+                "mean_predicted": np.average(pp, weights=ww) * 100,
+                "citl": np.average(yy, weights=ww) - np.average(pp, weights=ww),
+                "logistic_slope": logistic_calibration(yy, pp, ww)[0]}
+
+    op_rows = []
+    for label, mask in [("All", pd.Series(True, index=df.index))] + groups:
+        mk = mask.values
+        est = op_metrics(y[mk], flag[mk], w[mk], p[mk])
+        bt = {k: [] for k in est}
+        for rw in reps:
+            k_ = mk & (rw > 0)
+            if len(np.unique(y[k_])) == 2:
+                for k, v in op_metrics(y[k_], flag[k_], rw[k_], p[k_]).items():
+                    bt[k].append(v)
+        row = {"subgroup": label, "n": int(mk.sum()), "events": int(y[mk].sum())}
+        for k, v in est.items():
+            lo, hi = ci(bt[k])
+            row[k] = round(float(v), 4)
+            row[f"{k}_ci"] = f"{lo:.4f}–{hi:.4f}"
+        op_rows.append(row)
+    sg_op = pd.DataFrame(op_rows)
+    sg_op.to_csv(os.path.join(OUT, "tableS5_subgroup_operating.csv"), index=False)
+
+    # 9. Outcome components: the CKD label is eGFR<60 OR UACR>=30, so a
+    #    participant missing one component can only be positive on the other
+    has_scr, has_uacr = df["scr"].notna().values, df["uacr"].notna().values
+    both = has_scr & has_uacr
+    comp = {"n_both": int(both.sum()),
+            "n_creatinine_only": int((has_scr & ~has_uacr).sum()),
+            "n_uacr_only": int((~has_scr & has_uacr).sum())}
+    for name, mk in [("all", np.ones(len(df), bool)), ("both", both),
+                     ("creatinine_only", has_scr & ~has_uacr),
+                     ("uacr_only", ~has_scr & has_uacr)]:
+        if mk.sum():
+            comp[f"weighted_prev_pct_{name}"] = round(float(np.average(y[mk], weights=w[mk]) * 100), 2)
+    comp["auroc_oof_restricted_to_both"] = round(weighted_auroc(y[both], p[both], w[both]), 4)
+    comp["auroc_oof_restricted_to_both_ci"] = ci(
+        [weighted_auroc(y[both & (rw > 0)], p[both & (rw > 0)], rw[both & (rw > 0)]) for rw in reps])
+    # Refit the model on participants with both components only
+    db = df[both].reset_index(drop=True)
+    Xb, yb_, wb_ = db[FEATURES].values, db["ckd"].values, db["mec_weight"].values
+    pb_ = np.zeros(len(yb_))
+    for tr, va in StratifiedKFold(5, shuffle=True, random_state=SEED).split(Xb, yb_):
+        m_ = xgb.XGBClassifier(**XGB_PARAMS)
+        m_.fit(Xb[tr], yb_[tr], sample_weight=wb_[tr])
+        pb_[va] = m_.predict_proba(Xb[va])[:, 1]
+    comp["auroc_refit_on_both"] = round(weighted_auroc(yb_, pb_, wb_), 4)
+    with open(os.path.join(OUT, "stage2_outcome_components.json"), "w") as f:
+        json.dump(comp, f, indent=2)
+
+    # 10. CKD awareness: self-reported kidney disease (KIQ022, the item that
+    #     corresponds to the BRFSS question behind CDC PLACES) vs measured CKD
+    kiq = []
+    for cycle, path in [("P_2017-2020", "P_2017-2020/P_KIQ_U.xpt"),
+                        ("L_2021-2023", "L_2021-2022/KIQ_U_L.xpt")]:
+        k_ = pd.read_sas(os.path.join(RAW, path), format="xport")[["SEQN", "KIQ022"]]
+        k_["SEQN"] = k_["SEQN"].astype(int); k_["cycle"] = cycle
+        kiq.append(k_)
+    da = df.merge(pd.concat(kiq), on=["SEQN", "cycle"], how="left")
+    told = da["KIQ022"].map({1.0: 1, 2.0: 0}).values  # 7/9/missing -> NaN
+    has_q = ~np.isnan(told)
+    aware = {"item": "KIQ022: ever told by a health professional you had weak or failing kidneys",
+             "n_answered": int(has_q.sum())}
+    pir_groups = [("All", np.ones(len(da), bool)), ("PIR <1.3", (da["pir"] < 1.3).values),
+                  ("PIR 1.3-3.49", ((da["pir"] >= 1.3) & (da["pir"] < 3.5)).values),
+                  ("PIR ≥3.5", (da["pir"] >= 3.5).values)]
+    for label, mk in pir_groups:
+        m_all = mk & has_q
+        m_ckd = m_all & (y == 1)
+        def stat(ww):
+            return (np.average(y[m_all], weights=ww[m_all]) * 100,
+                    np.average(told[m_all], weights=ww[m_all]) * 100,
+                    np.average(told[m_ckd], weights=ww[m_ckd]) * 100)
+        est = stat(w)
+        bt = np.array([stat(rw) for rw in reps if rw[m_ckd].sum() > 0])
+        aware[label] = {
+            "n": int(m_all.sum()), "n_ckd": int(m_ckd.sum()),
+            "measured_ckd_pct": round(est[0], 1),
+            "self_reported_kidney_disease_pct": round(est[1], 1),
+            "self_reported_kidney_disease_pct_ci": [round(v, 1) for v in np.percentile(bt[:, 1], [2.5, 97.5])],
+            "awareness_among_ckd_pct": round(est[2], 1),
+            "awareness_among_ckd_pct_ci": [round(v, 1) for v in np.percentile(bt[:, 2], [2.5, 97.5])],
+        }
+    lo, hi = aware["PIR <1.3"], aware["PIR ≥3.5"]
+    aware["gradient_low_vs_high_income"] = {
+        "measured_ckd_ratio": round(lo["measured_ckd_pct"] / hi["measured_ckd_pct"], 2),
+        "self_reported_ratio": round(lo["self_reported_kidney_disease_pct"]
+                                     / hi["self_reported_kidney_disease_pct"], 2)}
+    with open(os.path.join(OUT, "stage2_ckd_awareness.json"), "w") as f:
+        json.dump(aware, f, indent=2)
+
+    print(sg_op.to_string(index=False))
+    print(json.dumps(comp, indent=2))
+    print(json.dumps(aware, indent=2))
     print(sg_ci.to_string(index=False))
     print(json.dumps(metrics_ci, indent=2))
-    print(json.dumps(comp, indent=2))
     print(miss.to_string(index=False))
     print(json.dumps(mi_out, indent=2))
     print(op.to_string(index=False))

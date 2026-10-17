@@ -1,0 +1,11 @@
+{
+  "title": "SDOH-CKDPred: open CKD small-area surveillance and screening-triage pipeline",
+  "upload_type": "software",
+  "version": "6.0.0",
+  "creators": [
+    {"name": "Sahu, Ajit", "affiliation": "DataSafeguard.ai"},
+    {"name": "Mukherjee, Sanjoy", "affiliation": "Independent Researcher"}
+  ],
+  "description": "Analysis code for the JMIR Public Health and Surveillance submission (ms 101575). Stage 1 relates the Neighborhood Atlas Area Deprivation Index to CDC PLACES 2022 tract-level diagnosed CKD prevalence; Stage 2 identifies adults with single-visit laboratory markers of CKD in NHANES 2017-2023 without laboratory inputs. All results are regenerated from public data by the scripts in src/. The Neighborhood Atlas ADI file is not included (data use agreement).",
+  "keywords": ["chronic kidney disease", "public health surveillance", "area deprivation index", "NHANES", "CDC PLACES"]
+}

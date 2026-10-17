@@ -69,7 +69,8 @@ def load_inputs():
     # Design-based CIs from src/stage2_supplementary.py
     with open(os.path.join(OUT, "stage2_metrics_ci.json")) as f:
         metrics.update({k: v for k, v in json.load(f).items() if k.endswith("_ci")
-                        or k.startswith(("logistic_", "calibration_in"))})
+                        or k.startswith(("logistic_", "calibration_in", "brier_"))
+                        or k in ("ici", "e50", "e90")})
     cal    = pd.read_csv(os.path.join(OUT, "stage2_calibration_deciles.csv"))
     sg     = pd.read_csv(os.path.join(OUT, "stage2_subgroup_auroc_with_ci.csv"))
     dc     = pd.read_csv(os.path.join(OUT, "stage2_decision_curve.csv"))
@@ -89,7 +90,7 @@ def fig8_roc(oof, metrics):
             linestyle="--", label="Chance")
     ax.set_xlabel("False positive rate (1 − specificity)")
     ax.set_ylabel("True positive rate (sensitivity)")
-    ax.set_title("Figure 8. ROC curve, Stage 2 NHANES classifier",
+    ax.set_title("ROC curve, Stage 2 NHANES classifier",
                  loc="left", fontsize=12, fontweight="bold")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1.005)
     ax.legend(loc="lower right", frameon=True, fontsize=10)
@@ -116,7 +117,7 @@ def fig9_pr(oof, metrics):
                label=f"Prevalence baseline ({prev*100:.1f}%)")
     ax.set_xlabel("Recall (sensitivity)")
     ax.set_ylabel("Precision (positive predictive value)")
-    ax.set_title("Figure 9. Precision-Recall curve, Stage 2 NHANES classifier",
+    ax.set_title("Precision-Recall curve, Stage 2 NHANES classifier",
                  loc="left", fontsize=12, fontweight="bold")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1.005)
     ax.legend(loc="upper right", frameon=True, fontsize=10)
@@ -126,31 +127,33 @@ def fig9_pr(oof, metrics):
 
 # ── Figure 10: Calibration plot by decile ────────────────────────────────
 def fig10_calibration(cal, metrics):
-    fig, ax = plt.subplots(figsize=(6, 5.2))
-    ax.plot([0, cal["mean_predicted"].max() * 1.05],
-            [0, cal["mean_predicted"].max() * 1.05],
-            color=PALETTE["muted"], lw=1.2, linestyle="--",
-            label="Perfect calibration")
-    ax.plot(cal["mean_predicted"], cal["observed"],
-            "o-", color=PALETTE["primary"], lw=2, markersize=8,
-            label="Observed (decile bins)")
-    for _, r in cal.iterrows():
-        ax.annotate(f"D{int(r['decile'])}",
-                    xy=(r["mean_predicted"], r["observed"]),
-                    xytext=(5, 5), textcoords="offset points",
-                    fontsize=8, color="gray")
-    ax.set_xlabel("Mean predicted probability")
+    """Flexible calibration curve (spline-logistic, design-based 95% band)
+    with weighted decile means (bin sizes: outputs/stage2_calibration_deciles.csv)."""
+    flex = pd.read_csv(os.path.join(OUT, "stage2_calibration_flexible.csv"))
+    flex = flex[flex["predicted"] <= cal["mean_predicted"].max()]
+    fig, ax = plt.subplots(figsize=(6.4, 5.4))
+    lim = cal["mean_predicted"].max() * 1.08
+    ax.plot([0, lim], [0, lim], color=PALETTE["muted"], lw=1.2,
+            linestyle="--", label="Perfect calibration")
+    ax.fill_between(flex["predicted"], flex["ci_lower"], flex["ci_upper"],
+                    color=PALETTE["primary"], alpha=0.18, lw=0,
+                    label="Flexible calibration, 95% CI")
+    ax.plot(flex["predicted"], flex["observed_smooth"], color=PALETTE["primary"],
+            lw=2, label="Flexible calibration curve")
+    ax.plot(cal["mean_predicted"], cal["observed"], "o", color=PALETTE["secondary"],
+            markersize=7, label="Decile of predicted risk")
+    ax.set_xlim(0, lim); ax.set_ylim(0, lim)
+    ax.set_xlabel("Predicted probability")
     ax.set_ylabel("Observed CKD prevalence (survey-weighted)")
-    ax.set_title("Figure 10. Calibration by decile, Stage 2 NHANES classifier",
+    ax.set_title("Calibration, Stage 2 NHANES classifier",
                  loc="left", fontsize=12, fontweight="bold")
-    ax.legend(loc="upper left", frameon=True, fontsize=10)
-    fig.text(0.02, -0.04,
-             f"Decile slope = {metrics['calibration_slope']:.3f}; logistic "
-             f"calibration slope = {metrics['logistic_calibration_slope']:.3f} "
-             f"(95% CI {metrics['logistic_calibration_slope_ci'][0]:.2f}–"
-             f"{metrics['logistic_calibration_slope_ci'][1]:.2f}); "
-             f"calibration-in-the-large = {metrics['calibration_in_the_large']:+.3f}",
-             fontsize=9, color="gray")
+    ax.legend(loc="upper left", frameon=True, fontsize=9)
+    fig.text(0.02, -0.06,
+             f"Logistic calibration slope {metrics['logistic_calibration_slope']:.2f} "
+             f"(95% CI {_ci(metrics['logistic_calibration_slope_ci'])}); intercept "
+             f"{metrics['logistic_calibration_intercept']:+.2f}; ICI "
+             f"{metrics['ici']:.3f}, E50 {metrics['e50']:.3f}, E90 {metrics['e90']:.3f}",
+             fontsize=8.5, color="gray")
     fig.savefig(os.path.join(FIG, "fig10_calibration.png"))
     plt.close(fig)
 
@@ -185,7 +188,7 @@ def fig11_subgroup_forest(sg, metrics, oof):
                          for s, n in zip(sg["subgroup"], sg["n"])])
     ax.set_xlabel("Survey-weighted AUROC (95% design-based bootstrap CI)")
     ax.set_xlim(0.5, 1.0)
-    ax.set_title("Figure 11. Subgroup AUROC, Stage 2 NHANES classifier",
+    ax.set_title("Subgroup AUROC, Stage 2 NHANES classifier",
                  loc="left", fontsize=12, fontweight="bold")
     ax.legend(loc="lower right", frameon=True, fontsize=9)
     ax.grid(axis="y", alpha=0.15)
@@ -207,7 +210,7 @@ def fig12_decision_curve(dc):
             label="Treat none")
     ax.set_xlabel("Risk threshold")
     ax.set_ylabel("Net benefit")
-    ax.set_title("Figure 12. Decision-curve analysis (Vickers 2006)",
+    ax.set_title("Decision-curve analysis (Vickers 2006)",
                  loc="left", fontsize=12, fontweight="bold")
     ax.set_xlim(0.05, 0.40)
     ax.legend(loc="upper right", frameon=True, fontsize=10)
@@ -223,6 +226,8 @@ def fig13_performance_matrix(metrics, sg):
          f"{metrics['auprc']:.3f} ({_ci(metrics['auprc_ci'])}; "
          f"{metrics['weighted_prevalence_pct']/100:.3f})"),
         ("Brier score (95% CI)", f"{metrics['brier']:.3f} ({_ci(metrics['brier_ci'])})"),
+        ("Brier skill score (95% CI)",
+         f"{metrics['brier_skill_score']:.3f} ({_ci(metrics['brier_skill_score_ci'])})"),
         ("Logistic calibration slope (95% CI)",
          f"{metrics['logistic_calibration_slope']:.3f} "
          f"({_ci(metrics['logistic_calibration_slope_ci'])})"),
@@ -256,7 +261,7 @@ def fig13_performance_matrix(metrics, sg):
         elif k[0] % 2 == 1:
             c.set_facecolor("#f4f4f4")
         c.set_edgecolor("#cccccc")
-    ax.set_title("Figure 13. Stage 2 NHANES classifier performance matrix",
+    ax.set_title("Stage 2 NHANES classifier performance matrix",
                  loc="left", fontsize=12, fontweight="bold", pad=12)
     fig.savefig(os.path.join(FIG, "fig13_performance_matrix.png"))
     plt.close(fig)
@@ -340,12 +345,19 @@ def table2_perf(metrics, sg):
          f"{metrics['auprc']:.3f} ({_ci(metrics['auprc_ci'])})"),
         ("Overall accuracy — Brier score (95% CI)",
          f"{metrics['brier']:.3f} ({_ci(metrics['brier_ci'])})"),
+        ("Overall accuracy — Brier skill score vs prevalence-only (95% CI)",
+         f"{metrics['brier_skill_score']:.3f} ({_ci(metrics['brier_skill_score_ci'])})"),
         ("Calibration — logistic slope (95% CI)",
          f"{metrics['logistic_calibration_slope']:.3f} "
          f"({_ci(metrics['logistic_calibration_slope_ci'])})"),
+        ("Calibration — logistic intercept (95% CI)",
+         f"{metrics['logistic_calibration_intercept']:+.3f} "
+         f"({_ci(metrics['logistic_calibration_intercept_ci'])})"),
         ("Calibration — in-the-large (95% CI)",
          f"{metrics['calibration_in_the_large']:+.3f} "
          f"({_ci(metrics['calibration_in_the_large_ci'])})"),
+        ("Calibration — ICI / E50 / E90",
+         f"{metrics['ici']:.3f} / {metrics['e50']:.3f} / {metrics['e90']:.3f}"),
         ("Calibration — decile slope (95% CI)",
          f"{metrics['calibration_slope']:.3f} ({_ci(metrics['calibration_slope_ci'])})"),
         ("Operating point threshold", f"{metrics['operating_threshold_for_90pct_spec']:.3f}"),

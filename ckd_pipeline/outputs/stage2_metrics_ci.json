@@ -31,6 +31,32 @@
     -0.0015,
     0.011
   ],
+  "logistic_calibration_intercept": 0.0502,
+  "logistic_calibration_intercept_ci": [
+    -0.0179,
+    0.1196
+  ],
+  "ici": 0.0225,
+  "ici_ci": [
+    0.0169,
+    0.0291
+  ],
+  "e50": 0.0188,
+  "e50_ci": [
+    0.0123,
+    0.0247
+  ],
+  "e90": 0.0297,
+  "e90_ci": [
+    0.0214,
+    0.0471
+  ],
+  "brier_null": 0.1199,
+  "brier_skill_score": 0.1469,
+  "brier_skill_score_ci": [
+    0.1229,
+    0.172
+  ],
   "threshold_90pct_spec": 0.2915,
   "sensitivity_at_90pct_spec": 0.4492,
   "sensitivity_ci": [

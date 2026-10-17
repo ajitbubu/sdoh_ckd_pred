@@ -15,6 +15,8 @@
 | `JMIR_PHS_v6_Editorial_Response.md` | This document: every editorial comment, our response, and remaining author actions |
 | `JMIR_PHS_v6_Response_to_Reviewer_AS.md` | Point-by-point response to Reviewer AS (10 minor comments) |
 
+> **Note on numbering:** Parts B and D record the state of the analysis during the editorial round. Figure and table numbers there refer to that version. After Reviewer FE's comments, Figures 6, 7, and 13 were removed and Stage 1 Tables 1–2 were added, so the current numbers are in the manuscript and in `JMIR_PHS_v6_Response_Letter.md`. Model-comparison results were also replaced (see `JMIR_PHS_v6_Response_to_Reviewer_FE.md`, comment 7).
+
 ---
 
 ## Part A. Point-by-point response to the editorial comments
@@ -156,7 +158,7 @@ Re-running the pipeline showed that a number of v5 results were **not produced b
 
 | v5 claim | Actual result (v6) | Source |
 |---|---|---|
-| XGBoost beat logistic regression by 0.017 AUROC; DeLong z = 2.91, P=.004 | **No advantage.** LR AUROC 0.778 vs XGBoost 0.772; difference −0.006 (95% CI −0.013 to 0.002); bootstrap P=.11; DeLong P=.59 | `outputs/stage2_comparator_lr.json` |
+| XGBoost beat logistic regression by 0.017 AUROC; DeLong z = 2.91, P=.004 | **No advantage.** LR AUROC 0.778 vs XGBoost 0.772. Final analysis (identical imputation, CV re-run in 1,000 design-based replicates, no P values): difference −0.004 (95% CI −0.026 to 0.003) | `outputs/stage2_comparator_lr.json` |
 | Bootstrap 95% CI for AUROC 0.756–0.789, AUPRC 0.371–0.438, Brier 0.098–0.106, sensitivity 41.2–49.8% | AUROC 0.772 (0.758–0.787); AUPRC 0.402 (0.374–0.433); Brier 0.102 (0.096–0.109); sensitivity 44.9% (41.7–48.2%), all design-based | `outputs/stage2_metrics_ci.json` |
 | Missingness highest for blood pressure (9.4%) | **Income-to-poverty ratio 13.5%**; blood pressure 7.3% | `outputs/tableS3_missingness.csv` |
 | MI changed AUROC by <0.001 | +0.001 (0.772 → 0.774) | `outputs/stage2_mi_sensitivity.json` |

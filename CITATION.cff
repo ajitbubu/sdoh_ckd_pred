@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "SDOH-CKDPred: open CKD small-area surveillance and screening-triage pipeline"
+version: 6.0.0
+date-released: 2026-10-17
+authors:
+  - family-names: Sahu
+    given-names: Ajit
+    affiliation: DataSafeguard.ai
+  - family-names: Mukherjee
+    given-names: Sanjoy
+    affiliation: Independent Researcher
+repository-code: "https://github.com/ajitbubu/sdoh_ckd_pred"
+abstract: >-
+  Code for the JMIR Public Health and Surveillance submission: Stage 1 relates
+  the Neighborhood Atlas Area Deprivation Index to CDC PLACES 2022 tract-level
+  diagnosed CKD prevalence; Stage 2 identifies adults with single-visit
+  laboratory markers of CKD in NHANES 2017-2023 without laboratory inputs.
+  All results are regenerated from public data by the scripts in src/.

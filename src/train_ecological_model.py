@@ -29,15 +29,16 @@ file must be downloaded:
 This script detects whether a real block-group ADI file is present:
   • If yes: aggregates to tract via mean across constituent block-groups
     and runs the manuscript pipeline.
-  • If no: generates a tract-level placeholder by random assignment to
-    PLACES tracts and runs the pipeline structure (will NOT reproduce
-    the R² ≈ 0.45 figure but verifies code paths).
+  • If no: stops with an error. Synthetic placeholder ADI (random values,
+    for testing code paths only; will NOT reproduce R² ≈ 0.444) is used
+    only when run with --allow-placeholder.
 
 Outputs:
   outputs/stage1_metrics.json
   outputs/stage1_random_5fold_results.csv
   outputs/stage1_loro_results.csv
   outputs/stage1_capacity_sweep.csv
+  outputs/stage1_capacity_ofat.csv      — one-factor-at-a-time sweep
   outputs/stage1_calibration.csv
   outputs/stage1_predictions_by_quintile.csv
   outputs/stage1_feature_importance.csv
@@ -45,6 +46,7 @@ Outputs:
 """
 
 import os
+import sys
 import json
 import warnings
 warnings.filterwarnings("ignore")
@@ -119,7 +121,15 @@ def load_adi_tract_level(places_tracts):
         adi_tract.columns = [c.lower() if c != "TractFIPS" else c for c in adi_tract.columns]
         return adi_tract, "real_neighborhood_atlas"
 
-    # Fallback: generate tract-level placeholder by random assignment to PLACES tracts.
+    # No silent substitution: synthetic ADI only when explicitly requested
+    # (pipeline testing), never as a fallback for a missing input.
+    if "--allow-placeholder" not in sys.argv:
+        raise SystemExit(
+            f"ERROR: real ADI block-group file not found at {real_bg_path}.\n"
+            "Download the 2020 national block-group file from "
+            "https://www.neighborhoodatlas.medicine.wisc.edu/ (free registration),\n"
+            "save it at that path, and re-run. To test the pipeline code with "
+            "synthetic ADI instead, pass --allow-placeholder.")
     print(f"  [PLACEHOLDER ADI] real block-group ADI not present at {real_bg_path}")
     print(f"                   Generating synthetic tract-level ADI for pipeline test.")
     rng = np.random.default_rng(SEED)
@@ -228,9 +238,23 @@ def leave_one_region_out(df):
     return pd.DataFrame(rows)
 
 
-def capacity_sweep(df):
-    print("\n  Capacity sensitivity sweep (5 settings)...")
-    settings = [
+# One factor at a time around the main configuration (600 trees, depth 5,
+# learning rate 0.05): unlike the default ladder in capacity_sweep, which moves all three
+# together and roughly holds effective capacity constant, this isolates each.
+OFAT_SETTINGS = [
+    dict(n_estimators=600,  max_depth=5, learning_rate=0.05),
+    dict(n_estimators=200,  max_depth=5, learning_rate=0.05),
+    dict(n_estimators=1000, max_depth=5, learning_rate=0.05),
+    dict(n_estimators=600,  max_depth=3, learning_rate=0.05),
+    dict(n_estimators=600,  max_depth=7, learning_rate=0.05),
+    dict(n_estimators=600,  max_depth=5, learning_rate=0.01),
+    dict(n_estimators=600,  max_depth=5, learning_rate=0.10),
+]
+
+
+def capacity_sweep(df, settings=None):
+    print(f"\n  Configuration sweep ({len(settings or [0] * 5)} settings)...")
+    settings = settings or [
         dict(n_estimators=200,  max_depth=3, learning_rate=0.10),
         dict(n_estimators=400,  max_depth=4, learning_rate=0.08),
         dict(n_estimators=600,  max_depth=5, learning_rate=0.05),
@@ -298,6 +322,7 @@ if __name__ == "__main__":
     rand_results, df = random_5fold(df)
     loro_results = leave_one_region_out(df)
     capacity_results = capacity_sweep(df)
+    ofat_results = capacity_sweep(df, OFAT_SETTINGS)
     cal_df, cal_slope, cal_intercept = calibration_report(df)
     quintile_df = predictions_by_quintile(df)
     importance_df = feature_importance(df)
@@ -324,6 +349,7 @@ if __name__ == "__main__":
     rand_results.to_csv(os.path.join(OUT, "stage1_random_5fold_results.csv"), index=False)
     loro_results.to_csv(os.path.join(OUT, "stage1_loro_results.csv"), index=False)
     capacity_results.to_csv(os.path.join(OUT, "stage1_capacity_sweep.csv"), index=False)
+    ofat_results.to_csv(os.path.join(OUT, "stage1_capacity_ofat.csv"), index=False)
     cal_df.to_csv(os.path.join(OUT, "stage1_calibration.csv"), index=False)
     quintile_df.to_csv(os.path.join(OUT, "stage1_predictions_by_quintile.csv"), index=False)
     importance_df.to_csv(os.path.join(OUT, "stage1_feature_importance.csv"), index=False)

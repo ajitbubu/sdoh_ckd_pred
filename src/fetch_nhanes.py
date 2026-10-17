@@ -19,7 +19,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(BASE_DIR, "ckd_pipeline", "data", "raw", "nhanes")
 CDC = "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public"
 
-STEMS = ["DEMO", "BIOPRO", "ALB_CR", "BMX", "BPXO", "DIQ", "BPQ", "MCQ", "INQ"]
+STEMS = ["DEMO", "BIOPRO", "ALB_CR", "BMX", "BPXO", "DIQ", "BPQ", "MCQ", "INQ",
+         "KIQ_U"]  # KIQ_U: self-reported kidney disease (awareness analysis)
 CYCLES = [
     # (local dir, CDC begin-year folder, filename template)
     ("P_2017-2020", "2017", "P_{stem}.xpt"),

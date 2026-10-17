@@ -1,21 +1,47 @@
 {
-  "lr_spec": "L2 logistic regression, C=1.0, balanced class weights, median imputation + standardization inside each fold, race/ethnicity one-hot; MEC weights; same 5 folds as XGBoost",
-  "auroc_lr": 0.7783,
-  "auroc_lr_ci": [
-    0.7638,
-    0.7934
-  ],
-  "auroc_xgb": 0.7724,
-  "delta_auroc": -0.0059,
-  "delta_auroc_ci": [
-    -0.0132,
-    0.0016
-  ],
-  "delta_auroc_boot_p_two_sided": 0.112,
-  "delong_unweighted": {
-    "auroc_xgb": 0.7758,
-    "auroc_lr": 0.7773,
-    "z": -0.539,
-    "p": 0.59
+  "method": "5-fold stratified CV re-run inside each of 1000 Rao-Wu PSU-within-strata bootstrap replicates; replicate MEC weights; percentile 95% CIs; no p-values",
+  "models": {
+    "xgb_native": {
+      "auroc": 0.7724,
+      "auroc_ci": [
+        0.74,
+        0.7837
+      ]
+    },
+    "xgb_median": {
+      "auroc": 0.774,
+      "auroc_ci": [
+        0.7402,
+        0.7847
+      ]
+    },
+    "lr_median": {
+      "auroc": 0.7783,
+      "auroc_ci": [
+        0.76,
+        0.7913
+      ]
+    }
+  },
+  "delta_xgb_median_minus_lr_median": {
+    "estimate": -0.0043,
+    "ci": [
+      -0.026,
+      0.0029
+    ]
+  },
+  "delta_xgb_native_minus_lr_median": {
+    "estimate": -0.0059,
+    "ci": [
+      -0.0274,
+      0.0018
+    ]
+  },
+  "delta_xgb_native_minus_xgb_median": {
+    "estimate": -0.0016,
+    "ci": [
+      -0.0061,
+      0.0048
+    ]
   }
 }

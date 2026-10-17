@@ -152,3 +152,6 @@ redis_data/
 backend_logs/
 backend/logs/
 
+
+# Never commit credentials
+LOGIN_CREDENTIALS.md

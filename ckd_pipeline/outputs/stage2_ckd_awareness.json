@@ -1,0 +1,68 @@
+{
+  "item": "KIQ022: ever told by a health professional you had weak or failing kidneys",
+  "n_answered": 14443,
+  "All": {
+    "n": 14443,
+    "n_ckd": 2629,
+    "measured_ckd_pct": 14.1,
+    "self_reported_kidney_disease_pct": 3.0,
+    "self_reported_kidney_disease_pct_ci": [
+      2.6,
+      3.4
+    ],
+    "awareness_among_ckd_pct": 13.1,
+    "awareness_among_ckd_pct_ci": [
+      11.4,
+      14.8
+    ]
+  },
+  "PIR <1.3": {
+    "n": 3200,
+    "n_ckd": 671,
+    "measured_ckd_pct": 16.7,
+    "self_reported_kidney_disease_pct": 4.2,
+    "self_reported_kidney_disease_pct_ci": [
+      3.1,
+      5.3
+    ],
+    "awareness_among_ckd_pct": 16.2,
+    "awareness_among_ckd_pct_ci": [
+      12.8,
+      20.1
+    ]
+  },
+  "PIR 1.3-3.49": {
+    "n": 4853,
+    "n_ckd": 973,
+    "measured_ckd_pct": 16.7,
+    "self_reported_kidney_disease_pct": 3.3,
+    "self_reported_kidney_disease_pct_ci": [
+      2.7,
+      3.8
+    ],
+    "awareness_among_ckd_pct": 12.7,
+    "awareness_among_ckd_pct_ci": [
+      10.2,
+      14.9
+    ]
+  },
+  "PIR \u22653.5": {
+    "n": 4446,
+    "n_ckd": 608,
+    "measured_ckd_pct": 10.6,
+    "self_reported_kidney_disease_pct": 2.2,
+    "self_reported_kidney_disease_pct_ci": [
+      1.7,
+      2.7
+    ],
+    "awareness_among_ckd_pct": 12.9,
+    "awareness_among_ckd_pct_ci": [
+      9.9,
+      15.9
+    ]
+  },
+  "gradient_low_vs_high_income": {
+    "measured_ckd_ratio": 1.58,
+    "self_reported_ratio": 1.91
+  }
+}

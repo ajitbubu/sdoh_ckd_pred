@@ -54,7 +54,7 @@ The paragraph also notes that the convention somewhat overestimates persistent C
 
 ### Comment 3: Quintile gradient (~1.3×) smaller than the cited 1.5–2.0×; report observed by quintile and explain
 
-**Important correction:** The "~2.6% to ~3.4%" values in the previous text were wrong. They did not match the previous version's own Figure 5. The figure, generated from the real ADI data, shows observed PLACES prevalence of about 2.45%, 2.60%, 2.83%, 3.20%, and 3.90% for Q1 to Q5. That is a **1.6-fold** gradient, within the cited range, at its lower end. Predicted values are virtually identical to observed in every quintile.
+**Important correction:** The "~2.6% to ~3.4%" values in the previous text were wrong. They did not match the previous version's own Figure 5 (now Table 2 and Figure 4). The figure, generated from the real ADI data, shows observed PLACES prevalence of about 2.45%, 2.60%, 2.83%, 3.20%, and 3.90% for Q1 to Q5. That is a **1.6-fold** gradient, within the cited range, at its lower end. Predicted values are virtually identical to observed in every quintile.
 
 **Change:**
 
@@ -65,7 +65,7 @@ The paragraph also notes that the convention somewhat overestimates persistent C
   - under-ascertainment of CKD in self-report, which may vary with deprivation.
 
 **Draft reply:**
-> We thank the reviewer for catching this. The quintile values in the previous text were incorrect and did not match Figure 5. The observed PLACES prevalence by ADI quintile is 2.45%, 2.60%, 2.83%, 3.20%, and 3.90%, a 1.6-fold gradient, within the 1.5- to 2.0-fold range cited, and the model's predicted means are within 0.002 percentage points of observed in every quintile. We now report observed and predicted values for every quintile in the Results. Because predicted and observed quintile means coincide, model shrinkage does not attenuate the gradient. In the Discussion we note that its position at the lower end of the published range more plausibly reflects smoothing in the PLACES small-area estimation, within-tract averaging, and under-ascertainment of CKD in self-report.
+> We thank the reviewer for catching this. The quintile values in the previous text were incorrect and did not match the previous version's Figure 5 (now Table 2 and Figure 4). The observed PLACES prevalence by ADI quintile is 2.45%, 2.60%, 2.83%, 3.20%, and 3.90%, a 1.6-fold gradient, within the 1.5- to 2.0-fold range cited, and the model's predicted means are within 0.002 percentage points of observed in every quintile. We now report observed and predicted values for every quintile in the Results. Because predicted and observed quintile means coincide, model shrinkage does not attenuate the gradient. In the Discussion we note that its position at the lower end of the published range more plausibly reflects smoothing in the PLACES small-area estimation, within-tract averaging, and under-ascertainment of CKD in self-report.
 
 **Resolved:** Exact values confirmed by the Stage 1 rerun with the real ADI file (`ckd_pipeline/outputs/stage1_predictions_by_quintile.csv`).
 
@@ -111,10 +111,10 @@ The paragraph also notes that the convention somewhat overestimates persistent C
 - **Gain of the full model over age + sex:** +0.050 (0.043–0.057).
 - **Gain from blood pressure and self-reported conditions alone:** +0.030 (0.024–0.036).
 
-The new values appear in the Methods, in the Results, and in two new rows of Table 2.
+The new values appear in the Methods, in the Results, and in two new rows of Table 4.
 
 **Draft reply:**
-> Thank you for this helpful suggestion, which we have adopted. Age and sex alone achieve an AUROC of 0.728, adding race/ethnicity, income-to-poverty ratio, and BMI gives 0.748, and the full model gives 0.778. Blood pressure and self-reported conditions therefore add 0.030 (95% CI 0.024–0.036) beyond demographics and BMI. We report this in the Results and Table 2 and note that much of the discrimination comes from age.
+> Thank you for this helpful suggestion, which we have adopted. Age and sex alone achieve an AUROC of 0.728, adding race/ethnicity, income-to-poverty ratio, and BMI gives 0.748, and the full model gives 0.778. Blood pressure and self-reported conditions therefore add 0.030 (95% CI 0.024–0.036) beyond demographics and BMI. We report this in the Results and Table 4 and note that much of the discrimination comes from age.
 
 ### Comment 8: Why Spearman (0.71) exceeds R² (0.45)
 
@@ -125,10 +125,10 @@ The new values appear in the Methods, in the Results, and in two new rows of Tab
 
 ### Comment 9: Leave-one-region-out values and the Figure 3 caption
 
-**Change:** The previous text and caption were inconsistent with each other and with the figure. The Stage 1 rerun and the regenerated Figures 3 and 7 show the Northeast as the minimum (0.232), not the West (0.251). The v6 Results now state all four values, Northeast 0.232, Midwest 0.409, South 0.416, and West 0.251, with the four calibration slopes (0.69, 0.90, 1.14, 0.81). The Figure 3 caption no longer repeats rounded values. Figure 7 lists all four regional R² values.
+**Change:** The previous text and caption were inconsistent with each other and with the figure. The Stage 1 rerun and the regenerated regional figure (now Figure 5) and Table 1 show the Northeast as the minimum (0.232), not the West (0.251). The v6 Results now state all four values, Northeast 0.232, Midwest 0.409, South 0.416, and West 0.251, with the four calibration slopes (0.69, 0.90, 1.14, 0.81). The figure caption no longer repeats rounded values. Table 1 lists all four regional R² values.
 
 **Draft reply:**
-> Thank you. The previous text misidentified the lowest region. Re-running Stage 1 from the released code gives R²=0.232 for the Northeast and 0.251 for the West. The Results now state all four regional R² values (Northeast 0.232, Midwest 0.409, South 0.416, West 0.251) and calibration slopes, and Figure 7, regenerated from the same run, tabulates them.
+> Thank you. The previous text misidentified the lowest region. Re-running Stage 1 from the released code gives R²=0.232 for the Northeast and 0.251 for the West. The Results now state all four regional R² values (Northeast 0.232, Midwest 0.409, South 0.416, West 0.251) and calibration slopes, and Table 1, generated from the same run, tabulates them.
 
 ### Comment 10 (note): Registration-gated ADI file
 
