@@ -1,12 +1,12 @@
 subgroup,n,auroc
-Age <50,6917,0.6414
-Age 50-64,4081,0.7091
-Age ≥65,4152,0.6941
-Female,8000,0.7354
-Male,7150,0.8065
-Mexican American,1492,0.6997
-Other Hispanic,1564,0.7411
-NH White,6710,0.7752
-NH Black,3122,0.77
-NH Asian,1417,0.7806
-Other/Multi,845,0.8145
+Age <50,6917,0.6319
+Age 50-64,4081,0.7313
+Age ≥65,4152,0.7058
+Female,8000,0.7415
+Male,7150,0.814
+Mexican American,1492,0.722
+Other Hispanic,1564,0.7515
+NH White,6710,0.7787
+NH Black,3122,0.7783
+NH Asian,1417,0.7618
+Other/Multi,845,0.8108

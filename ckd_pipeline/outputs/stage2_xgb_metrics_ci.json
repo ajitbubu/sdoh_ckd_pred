@@ -1,0 +1,60 @@
+{
+  "model": "XGBoost comparator (native missing-value handling), survey-weighted; out-of-fold predictions on the primary model's folds",
+  "ci_method": "Rao-Wu rescaled bootstrap over SDMVPSU within SDMVSTRA, 1000 replicates, survey weights, fixed OOF predictions",
+  "auroc": 0.765675,
+  "auroc_ci": [
+    0.75104,
+    0.780184
+  ],
+  "auprc": 0.396715,
+  "auprc_ci": [
+    0.370602,
+    0.425815
+  ],
+  "brier": 0.102586,
+  "brier_ci": [
+    0.096727,
+    0.109251
+  ],
+  "logistic_calibration_slope": 0.734123,
+  "logistic_calibration_slope_ci": [
+    0.684484,
+    0.788199
+  ],
+  "calibration_in_the_large": 0.004187,
+  "calibration_in_the_large_ci": [
+    -0.001301,
+    0.010099
+  ],
+  "logistic_calibration_intercept": 0.047048,
+  "logistic_calibration_intercept_ci": [
+    -0.015074,
+    0.112568
+  ],
+  "ici": 0.025181,
+  "ici_ci": [
+    0.018648,
+    0.029723
+  ],
+  "e50": 0.018478,
+  "e50_ci": [
+    0.012071,
+    0.025308
+  ],
+  "e90": 0.04467,
+  "e90_ci": [
+    0.02456,
+    0.054694
+  ],
+  "brier_skill_score": 0.142652,
+  "brier_skill_score_ci": [
+    0.119877,
+    0.165759
+  ],
+  "threshold_90pct_spec": 0.28778,
+  "sensitivity_at_90pct_spec": 0.453435,
+  "sensitivity_ci": [
+    0.421792,
+    0.485732
+  ]
+}

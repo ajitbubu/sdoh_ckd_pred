@@ -1,4 +1,0 @@
-model,AUROC
-Logistic Regression,0.86
-Random Forest,0.86
-XGBoost,0.89

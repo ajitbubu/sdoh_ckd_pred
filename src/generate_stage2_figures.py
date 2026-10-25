@@ -94,8 +94,8 @@ def fig8_roc(oof, metrics):
                  loc="left", fontsize=12, fontweight="bold")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1.005)
     ax.legend(loc="lower right", frameon=True, fontsize=10)
-    fig.text(0.02, 0.02,
-             f"5-fold CV, NHANES MEC weights, n={metrics['n']:,}; "
+    fig.text(0.02, -0.06,
+             f"5-fold CV, NHANES survey weights, n={metrics['n']:,}; "
              f"design-based 95% CI {metrics['auroc_ci'][0]:.3f}–"
              f"{metrics['auroc_ci'][1]:.3f}",
              fontsize=8, color="gray")
@@ -213,7 +213,7 @@ def fig12_decision_curve(dc):
     ax.set_title("Decision-curve analysis (Vickers 2006)",
                  loc="left", fontsize=12, fontweight="bold")
     ax.set_xlim(0.05, 0.40)
-    ax.legend(loc="upper right", frameon=True, fontsize=10)
+    ax.legend(loc="lower left", frameon=True, fontsize=10)
     fig.savefig(os.path.join(FIG, "fig12_decision_curve.png"))
     plt.close(fig)
 

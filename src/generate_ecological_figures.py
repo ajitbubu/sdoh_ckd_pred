@@ -97,7 +97,7 @@ def fig1_parity(oof, metrics, is_placeholder):
     ax.set_title("Tract-level parity plot",
                  loc="left", fontsize=12, fontweight="bold", pad=18)
     ax.legend(loc="lower right", frameon=True, fontsize=9)
-    fig.text(0.02, 0.02,
+    fig.text(0.02, -0.06,
              f"n = {metrics['n_tracts']:,} tracts; CV R² = {metrics['random_5fold_r2_mean']:.3f}",
              fontsize=8, color="gray")
     fig.savefig(os.path.join(FIG, "fig01_parity.png"))
@@ -115,18 +115,13 @@ def fig2_calibration(cal, metrics, is_placeholder):
     ax.plot(cal["mean_predicted"], cal["observed"],
             "o-", color=PALETTE["primary"], lw=2, markersize=8,
             label="Observed (decile bins)")
-    for _, r in cal.iterrows():
-        ax.annotate(f"D{int(r['decile'])}",
-                    xy=(r["mean_predicted"], r["observed"]),
-                    xytext=(5, 5), textcoords="offset points",
-                    fontsize=8, color="gray")
     ax.set_xlim(0, lim); ax.set_ylim(0, lim)
     ax.set_xlabel("Mean predicted CKD prevalence (%)")
     ax.set_ylabel("Observed CKD prevalence (%)")
     ax.set_title("Stage 1 calibration plot (deciles)",
                  loc="left", fontsize=12, fontweight="bold", pad=18)
     ax.legend(loc="upper left", frameon=True, fontsize=9)
-    fig.text(0.02, 0.02,
+    fig.text(0.02, -0.06,
              f"Calibration slope = {metrics['calibration_slope']:.3f}, "
              f"intercept = {metrics['calibration_intercept']:.3f}",
              fontsize=8, color="gray")
@@ -136,21 +131,23 @@ def fig2_calibration(cal, metrics, is_placeholder):
 
 # ── Figure 3: leave-one-region-out panels ────────────────────────────────
 def fig3_loro(loro, is_placeholder):
-    fig, axes = plt.subplots(1, 4, figsize=(13, 4.5), sharey=True)
+    # One panel per metric so each y-axis carries a single unit
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.5))
     add_placeholder_banner(fig, is_placeholder)
 
-    for ax, (_, row) in zip(axes, loro.iterrows()):
-        bars = ax.bar(["R²", "MAE", "Cal slope"],
-                       [row["r2"], row["mae"], row["calibration_slope"]],
-                       color=[PALETTE["primary"], PALETTE["secondary"], PALETTE["accent"]])
-        ax.set_title(f"Hold out {row['held_out_region']}\n"
-                      f"(n_test = {int(row['n_test']):,})",
-                      fontsize=11, fontweight="bold")
-        ax.set_ylim(min(0, loro[["r2", "mae", "calibration_slope"]].values.min() - 0.1),
-                     max(1.2, loro[["r2", "mae", "calibration_slope"]].values.max() + 0.1))
-        for b, v in zip(bars, [row["r2"], row["mae"], row["calibration_slope"]]):
-            ax.text(b.get_x() + b.get_width()/2, b.get_height() + 0.02,
-                     f"{v:.3f}", ha="center", fontsize=9)
+    labels = [f"{r}\nn={int(n):,}" for r, n in zip(loro["held_out_region"], loro["n_test"])]
+    panels = [("r2", "Cross-validated R²", PALETTE["primary"], "{:.3f}"),
+              ("mae", "MAE (percentage points)", PALETTE["secondary"], "{:.3f}"),
+              ("calibration_slope", "Calibration slope", PALETTE["accent"], "{:.2f}")]
+    for ax, (col, title, color, fmt) in zip(axes, panels):
+        bars = ax.bar(labels, loro[col], color=color)
+        ax.set_title(title, fontsize=11, fontweight="bold")
+        ax.set_ylim(0, loro[col].max() * 1.18)
+        for b, v in zip(bars, loro[col]):
+            ax.text(b.get_x() + b.get_width()/2, b.get_height() * 1.01,
+                     fmt.format(v), ha="center", va="bottom", fontsize=9)
+        ax.tick_params(axis="x", labelsize=8)
+    axes[2].axhline(1.0, color=PALETTE["muted"], lw=1.2, linestyle="--")
 
     fig.suptitle("Leave-one-Census-region-out cross-validation",
                   fontsize=13, fontweight="bold", x=0.07, ha="left", y=1.02)

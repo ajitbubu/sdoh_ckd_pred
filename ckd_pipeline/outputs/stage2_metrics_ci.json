@@ -1,66 +1,66 @@
 {
-  "ci_method": "Rao-Wu rescaled bootstrap over SDMVPSU within SDMVSTRA, 1000 replicates, MEC weights, fixed OOF predictions",
-  "auroc": 0.7724,
+  "ci_method": "Rao-Wu rescaled bootstrap over SDMVPSU within SDMVSTRA, 1000 replicates, survey weights, fixed OOF predictions",
+  "auroc": 0.775836,
   "auroc_ci": [
-    0.7579,
-    0.787
+    0.761842,
+    0.790287
   ],
-  "auprc": 0.4017,
+  "auprc": 0.413669,
   "auprc_ci": [
-    0.3744,
-    0.433
+    0.38835,
+    0.438573
   ],
-  "brier": 0.1023,
+  "brier": 0.100062,
   "brier_ci": [
-    0.0963,
-    0.1088
+    0.09506,
+    0.105513
   ],
-  "calibration_slope": 0.815,
+  "calibration_slope": 1.002507,
   "calibration_slope_ci": [
-    0.766,
-    0.8667
+    0.955204,
+    1.057145
   ],
-  "calibration_intercept": 0.0294,
-  "logistic_calibration_slope": 0.7513,
+  "calibration_intercept": -0.000469,
+  "logistic_calibration_slope": 0.987928,
   "logistic_calibration_slope_ci": [
-    0.703,
-    0.8034
+    0.932407,
+    1.048577
   ],
-  "calibration_in_the_large": 0.0045,
+  "calibration_in_the_large": -0.00012,
   "calibration_in_the_large_ci": [
-    -0.0015,
-    0.011
+    -0.006017,
+    0.006208
   ],
-  "logistic_calibration_intercept": 0.0502,
+  "logistic_calibration_intercept": -0.0012,
   "logistic_calibration_intercept_ci": [
-    -0.0179,
-    0.1196
+    -0.061722,
+    0.060518
   ],
-  "ici": 0.0225,
+  "ici": 0.006058,
   "ici_ci": [
-    0.0169,
-    0.0291
+    0.003864,
+    0.01268
   ],
-  "e50": 0.0188,
+  "e50": 0.005648,
   "e50_ci": [
-    0.0123,
-    0.0247
+    0.002498,
+    0.011446
   ],
-  "e90": 0.0297,
+  "e90": 0.011297,
   "e90_ci": [
-    0.0214,
-    0.0471
+    0.006472,
+    0.026648
   ],
-  "brier_null": 0.1199,
-  "brier_skill_score": 0.1469,
+  "brier_null": 0.119655,
+  "brier_skill_score": 0.163745,
   "brier_skill_score_ci": [
-    0.1229,
-    0.172
+    0.14743,
+    0.181466
   ],
-  "threshold_90pct_spec": 0.2915,
-  "sensitivity_at_90pct_spec": 0.4492,
+  "threshold_90pct_spec": 0.26351,
+  "sensitivity_at_90pct_spec": 0.456492,
   "sensitivity_ci": [
-    0.4169,
-    0.4818
+    0.428252,
+    0.488246
   ]
 }

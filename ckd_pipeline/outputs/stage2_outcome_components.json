@@ -2,14 +2,14 @@
   "n_both": 13666,
   "n_creatinine_only": 249,
   "n_uacr_only": 1235,
-  "weighted_prev_pct_all": 13.93,
-  "weighted_prev_pct_both": 13.82,
-  "weighted_prev_pct_creatinine_only": 20.6,
-  "weighted_prev_pct_uacr_only": 14.01,
-  "auroc_oof_restricted_to_both": 0.7747,
+  "weighted_prev_pct_all": 13.9,
+  "weighted_prev_pct_both": 13.83,
+  "weighted_prev_pct_creatinine_only": 21.55,
+  "weighted_prev_pct_uacr_only": 13.0,
+  "auroc_oof_restricted_to_both": 0.7783,
   "auroc_oof_restricted_to_both_ci": [
-    0.7597,
-    0.7907
+    0.764467,
+    0.793773
   ],
-  "auroc_refit_on_both": 0.7687
+  "auroc_refit_on_both": 0.7772
 }

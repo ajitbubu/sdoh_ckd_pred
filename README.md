@@ -1,389 +1,58 @@
-# SDOH-CKDPred: AI-Enabled Early Detection of CKD in Underserved Communities
+# SDOH-CKDPred: open CKD small-area surveillance and screening triage
 
-An AI-enabled early detection system for Chronic Kidney Disease (CKD) that integrates clinical data with Social Determinants of Health (SDOH) to predict disease progression and trigger automated interventions.
+Analysis code for the manuscript "Neighborhood Deprivation and Undetected Chronic Kidney Disease Burden: Open Small-Area Surveillance and Non-Laboratory Screening Triage Using CDC PLACES and NHANES" (JMIR Public Health and Surveillance, manuscript 101575). Every number, table, and figure in the manuscript is produced by the scripts in `src/` from public data.
 
-## 🚀 Quick Start
+The study has 2 separate, unlinked analyses:
 
-**New to this project? Start here:**
+- **Stage 1 (ecological).** Relates the Neighborhood Atlas Area Deprivation Index (ADI, 2020) to the CDC PLACES 2022 tract-level prevalence of self-reported diagnosed CKD in 60,945 US census tracts (gradient-boosted regression; random, spatially blocked, and leave-one-region-out cross-validation).
+- **Stage 2 (individual).** Identifies adults with single-visit laboratory markers of CKD (race-free eGFR <60 mL/min/1.73 m² or UACR ≥30 mg/g) in NHANES 2017–March 2020 and 2021–August 2023 (n=15,150) using only information available without laboratory testing. The primary model is a survey-weighted logistic regression, with coefficients published in `ckd_pipeline/outputs/stage2_lr_coefficients.csv`; XGBoost is the comparator. Confidence intervals use a Rao–Wu bootstrap over NHANES primary sampling units.
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/sanjoyp158-sri/sdoh_ckd_pred.git
-   cd sdoh_ckd_pred
-   ```
+Neither model is a medical device. The Stage 2 score prioritizes laboratory testing and does not replace it.
 
-2. **Follow the setup guide**: See [SETUP_GUIDE.md](SETUP_GUIDE.md) for complete instructions
+## Data
 
-3. **Quick commands** (after setup):
-   - Terminal 1: `cd backend && ../.venv/bin/python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
-   - Terminal 2: `cd frontend && npm run dev`
-   - Open: http://localhost:3000
-   - Login: Any username/password (demo mode)
+| Source | How it is obtained | Saved to |
+|---|---|---|
+| NHANES 2017–March 2020 (P_) and 2021–2023 (_L) public-use files | `python src/fetch_nhanes.py` | `ckd_pipeline/data/raw/nhanes/` |
+| CDC PLACES 2022, census tract, GIS-friendly (dataset shc3-fzig) | `python src/fetch_places.py` | `ckd_pipeline/data/raw/cdc_places/` |
+| Neighborhood Atlas ADI 2020, national block-group file | Manual download after free registration at https://www.neighborhoodatlas.medicine.wisc.edu/ (data use agreement; not redistributed here) | `ckd_pipeline/data/raw/adi_2020_national_blockgroup.csv` |
 
-**📖 Documentation:**
-- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Complete setup instructions for external reviewers
-- [SIMPLE_START.md](SIMPLE_START.md) - Quick start commands
-- [API.md](API.md) - API documentation
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide
+The Stage 1 script stops with an error if the ADI file is absent. Synthetic ADI is used only with the explicit testing flag `--allow-placeholder`, and the output file records the source (`adi_source` in `stage1_metrics.json`).
 
-## Overview
+## Reproducing the results
 
-SDOH-CKDPred predicts CKD progression from Stage 2-3 to Stage 4-5 within 24 months using XGBoost with SHAP explainability. The system automatically triggers interventions for high-risk patients including telehealth consultations, home blood draws, and case management enrollment.
-
-## Key Features
-
-- **ML-Driven Predictions**: XGBoost classifier with AUROC ≥ 0.87
-- **Explainable AI**: SHAP-based explanations for clinical trust
-- **Risk Stratification**: Three-tier system (high >0.65, moderate 0.35-0.65, low <0.35)
-- **Automated Interventions**: Telehealth scheduling, home blood draws, case management
-- **Health Equity**: Fairness monitoring across racial/ethnic subgroups
-- **Cost-Effectiveness**: Target BCR of 3.75:1
-- **HIPAA Compliant**: Encryption at rest (AES-256) and in transit (TLS 1.3)
-- **Production Ready**: Docker deployment with health checks and monitoring
-
-## Architecture
-
-The system follows a layered architecture with clear separation of concerns:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Nginx (TLS 1.3)                      │
-│              Reverse Proxy & Load Balancer              │
-└─────────────────────────────────────────────────────────┘
-                            │
-┌─────────────────────────────────────────────────────────┐
-│                  FastAPI Backend                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│  │   API Layer  │  │  ML Analytics │  │ Intervention │ │
-│  │              │  │    Engine     │  │   Workflow   │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘ │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│  │ Data Integ.  │  │     SHAP      │  │     Risk     │ │
-│  │    Layer     │  │  Explainer    │  │ Stratifier   │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘ │
-└─────────────────────────────────────────────────────────┘
-                            │
-        ┌───────────────────┴───────────────────┐
-        │                                       │
-┌───────────────┐                      ┌────────────────┐
-│  PostgreSQL   │                      │     Redis      │
-│  (Encrypted)  │                      │    (Cache)     │
-└───────────────┘                      └────────────────┘
-```
-
-### Security Features
-
-**Encryption at Rest (Requirement 13.1)**:
-- AES-256 encryption for sensitive patient data in PostgreSQL
-- Encrypted database volumes
-- Secure key management via environment variables
-
-**Encryption in Transit (Requirement 13.2)**:
-- TLS 1.3 only (no fallback to older versions)
-- Strong cipher suites (AES-GCM, ChaCha20-Poly1305)
-- Perfect Forward Secrecy with 4096-bit DH parameters
-- HSTS enabled with preload
-- OCSP stapling for certificate validation
-
-**Application Security**:
-- JWT-based authentication
-- Role-based access control (RBAC)
-- Password hashing with bcrypt
-- SQL injection prevention via SQLAlchemy ORM
-- XSS protection headers
-- CSRF protection
-- Rate limiting
-- Audit logging for all data access
-
-**Container Security**:
-- Non-root user in containers
-- Minimal base images (Alpine Linux)
-- No exposed database ports in production
-- Health checks for all services
-- Resource limits and restart policies
-
-## Technology Stack
-
-- **Backend**: Python 3.11+, FastAPI
-- **Frontend**: React 18+, TypeScript
-- **Database**: PostgreSQL 15+
-- **Cache**: Redis 7+
-- **ML**: XGBoost, SHAP, scikit-learn
-- **Testing**: pytest, Hypothesis (property-based testing)
-- **Deployment**: Docker, docker-compose
-
-## Project Structure
-
-```
-sdoh_ckd_pred/
-├── backend/                 # FastAPI backend application
-│   ├── app/
-│   │   ├── api/            # API endpoints
-│   │   ├── core/           # Core configuration
-│   │   ├── models/         # Data models
-│   │   ├── services/       # Business logic
-│   │   ├── ml/             # ML engine and SHAP
-│   │   └── db/             # Database layer
-│   ├── tests/              # Backend tests
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/               # React frontend application
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── pages/         # Page components
-│   │   ├── services/      # API clients
-│   │   └── utils/         # Utilities
-│   ├── package.json
-│   └── Dockerfile
-├── ml_pipeline/           # Model training pipeline
-│   ├── data/              # Training data
-│   ├── models/            # Trained models
-│   ├── scripts/           # Training scripts
-│   └── notebooks/         # Jupyter notebooks
-├── docker-compose.yml     # Docker orchestration
-├── .env.example           # Environment variables template
-└── README.md
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+ (for frontend, if applicable)
-- Docker and Docker Compose
-- PostgreSQL 15+ (if running without Docker)
-- Redis 7+ (if running without Docker)
-
-### Quick Start with Docker (Recommended)
-
-1. Clone the repository:
-```bash
-git clone https://github.com/sanjoyp158-sri/sdoh_ckd_pred.git
-cd sdoh_ckd_pred
-```
-
-2. Run the production setup script:
-```bash
-./scripts/setup-production.sh
-```
-
-This script will:
-- Check prerequisites
-- Generate secure encryption keys
-- Create and configure `.env` file
-- Set up SSL certificates (optional)
-- Configure file permissions
-
-3. Place your trained ML model:
-```bash
-# Copy your trained model to the models directory
-cp /path/to/your/sdoh_ckdpred_final.json models/
-```
-
-4. Start the services:
-```bash
-# Development mode (with hot reload)
-docker-compose up -d
-
-# Production mode (with TLS 1.3 and security hardening)
-docker-compose -f docker-compose.prod.yml up -d
-```
-
-5. Verify deployment:
-```bash
-# Check service health
-docker-compose ps
-
-# Test health endpoint
-curl -k https://localhost/health
-
-# View logs
-docker-compose logs -f
-```
-
-6. Access the application:
-- Backend API: https://localhost/api/v1
-- API Documentation: https://localhost/docs
-- Health Check: https://localhost/health
-
-### Manual Setup (Without Docker)
-
-If you prefer to run services manually:
-
-1. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-2. Install backend dependencies:
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-3. Start PostgreSQL and Redis:
-```bash
-# Start PostgreSQL
-sudo systemctl start postgresql
-
-# Start Redis
-sudo systemctl start redis
-```
-
-4. Run database migrations:
-```bash
-cd backend
-alembic upgrade head
-```
-
-5. Start the backend:
-```bash
-cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-### SSL/TLS Configuration
-
-For production deployments with TLS 1.3 (Requirement 13.2):
+Python 3.11. The XGBoost wheel on macOS needs the OpenMP runtime (`brew install libomp`).
 
 ```bash
-# Generate SSL certificates
-./scripts/generate-ssl-certs.sh
-
-# Or use Let's Encrypt
-sudo certbot certonly --standalone -d your-domain.com
-sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/cert.pem
-sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem nginx/ssl/key.pem
+python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python src/fetch_nhanes.py
+.venv/bin/python src/fetch_places.py
+# place the ADI block-group file (see Data)
+.venv/bin/python src/train_ecological_model.py        # Stage 1
+.venv/bin/python src/train_nhanes_model.py            # Stage 2 cohort, primary model, XGBoost comparator
+.venv/bin/python src/stage2_supplementary.py          # design-based CIs, calibration, subgroups, sensitivity analyses, coefficients
+.venv/bin/python src/stage2_model_comparison.py 1000  # logistic regression vs XGBoost, CV refit in 1,000 bootstrap replicates (about 2 hours)
+.venv/bin/python src/generate_ecological_figures.py
+.venv/bin/python src/generate_stage2_figures.py
+.venv/bin/python src/build_v6_docx.py                 # manuscript and appendices (needs pandoc)
 ```
 
-## Deployment
+All random seeds are 42. Outputs are written to `ckd_pipeline/outputs/`, `figures_phs/`, and `tables_phs/`.
 
-For comprehensive deployment instructions, including:
-- Security configuration
-- SSL/TLS setup with TLS 1.3
-- Database encryption at rest (Requirement 13.1)
-- Production best practices
-- Monitoring and troubleshooting
-- Backup and recovery
+## Repository layout
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete deployment guide.
-
-## Documentation
-
-- [Requirements Document](.kiro/specs/ckd-early-detection-system/requirements.md)
-- [Design Document](.kiro/specs/ckd-early-detection-system/design.md)
-- [Implementation Tasks](.kiro/specs/ckd-early-detection-system/tasks.md)
-- [Deployment Guide](DEPLOYMENT.md) - **Comprehensive production deployment instructions**
-- [API Documentation](http://localhost:8000/docs) (when running)
-
-## API Endpoints
-
-### Authentication
-- `POST /api/v1/auth/login` - User authentication
-- `POST /api/v1/auth/token` - Get access token
-
-### Predictions
-- `POST /api/v1/predictions/predict` - Generate CKD progression prediction
-- `GET /api/v1/predictions/{patient_id}` - Get prediction history
-- `GET /api/v1/predictions/{patient_id}/explanation` - Get SHAP explanation
-
-### Dashboard
-- `GET /api/v1/dashboard/patients` - List all patients with risk scores
-- `GET /api/v1/dashboard/patients/{patient_id}` - Get patient details
-- `GET /api/v1/dashboard/high-risk` - List high-risk patients
-- `POST /api/v1/dashboard/acknowledge/{patient_id}` - Acknowledge high-risk alert
-
-### Health & Monitoring
-- `GET /health` - Health check endpoint
-- `GET /` - API status and version
-
-For detailed API documentation with request/response schemas, visit `/docs` when the server is running.
-
-## Testing
-
-### Backend Tests
-
-```bash
-cd backend
-
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=app --cov-report=html
-
-# Run specific test types
-pytest tests/unit/              # Unit tests
-pytest tests/integration/       # Integration tests
-pytest tests/property/          # Property-based tests
-
-# Run tests for specific components
-pytest tests/unit/test_xgboost_classifier.py
-pytest tests/property/test_properties_ml_analytics.py
 ```
-
-### Property-Based Testing
-
-The system uses Hypothesis for property-based testing to verify correctness properties:
-
-```bash
-# Run all property tests
-pytest tests/property/ -v
-
-# Run with more examples (thorough testing)
-pytest tests/property/ --hypothesis-profile=thorough
-
-# Run specific property test
-pytest tests/property/test_properties_risk_stratification.py -v
+src/                   pipeline scripts (download, Stage 1, Stage 2, figures, manuscript build)
+ckd_pipeline/outputs/  metric files cited in the manuscript (Multimedia Appendix 2)
+figures_phs/           figures
+tables_phs/            tables
+docs/                  manuscript source (Markdown), TRIPOD+AI checklist, style reference for the build
 ```
-
-### Testing Deployment
-
-```bash
-# Test Docker build
-docker-compose build
-
-# Test services start correctly
-docker-compose up -d
-docker-compose ps
-
-# Test health endpoints
-curl -k https://localhost/health
-
-# Test prediction endpoint (requires auth token)
-curl -k -X POST https://localhost/api/v1/predictions/predict \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <your-token>" \
-  -d '{
-    "patient_id": "test-001",
-    "clinical": {
-      "egfr": 45.0,
-      "uacr": 150.0,
-      "hba1c": 7.5
-    }
-  }'
-
-# View logs
-docker-compose logs -f backend
-```
-
-## Research Paper
-
-This implementation is based on the research paper:
-"AI-Enabled Early Detection of Chronic Kidney Disease in Underserved Communities Using Social Determinants of Health: Development and Pilot Simulation Study"
-
-## License
-
-[Add your license here]
 
 ## Citation
 
-If you use this system, please cite the original research paper and the data sources (USRDS, CDC PLACES, ADI, USDA, Census ACS).
+See [CITATION.cff](CITATION.cff). Please also cite the data sources: the Neighborhood Atlas (Kind and Buckingham, N Engl J Med 2018), CDC PLACES, and NHANES.
 
-## Contact
+## License
 
-[Add contact information]
+[AUTHORS: choose a license, e.g., MIT, and add a LICENSE file; the repository currently has none.]

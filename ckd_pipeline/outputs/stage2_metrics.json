@@ -1,21 +1,21 @@
 {
   "n": 15150,
   "events": 2706,
-  "weighted_prevalence_pct": 13.93,
-  "auroc": 0.7724,
-  "auroc_per_fold_min": 0.7604,
-  "auroc_per_fold_max": 0.8028,
-  "auprc": 0.4017,
-  "brier": 0.1023,
-  "calibration_slope": 0.815,
-  "calibration_intercept": 0.0294,
-  "operating_threshold_for_90pct_spec": 0.2915,
-  "sensitivity_at_90pct_spec": 0.4492,
+  "weighted_prevalence_pct": 13.9,
+  "auroc": 0.7758,
+  "auroc_per_fold_min": 0.7633,
+  "auroc_per_fold_max": 0.7973,
+  "auprc": 0.4137,
+  "brier": 0.1001,
+  "calibration_slope": 1.0025,
+  "calibration_intercept": -0.0005,
+  "operating_threshold_for_90pct_spec": 0.2635,
+  "sensitivity_at_90pct_spec": 0.4565,
   "fold_aurocs": [
-    0.7631,
-    0.7754,
-    0.7609,
-    0.7604,
-    0.8028
+    0.7699,
+    0.7771,
+    0.7633,
+    0.7747,
+    0.7973
   ]
 }

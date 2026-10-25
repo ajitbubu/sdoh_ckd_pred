@@ -3,8 +3,10 @@ src/train_nhanes_model.py
 -------------------------
 Stage 2 of the JMIR PHS two-stage CKD pipeline.
 
-Builds the NHANES analytic cohort and trains a survey-weighted XGBoost
-classifier for CKD presence using ONLY non-kidney predictors. The outcome
+Builds the NHANES analytic cohort and trains a survey-weighted logistic
+regression (primary model) for CKD presence using ONLY non-kidney
+predictors; an XGBoost classifier is fitted on the same folds as the
+comparator (column oof_prob_xgb). The outcome
 (KDIGO 2024 CKD label) is computed from kidney biomarkers (eGFR, UACR) but
 those biomarkers are NOT among the model features.
 
@@ -12,8 +14,11 @@ Cohort per manuscript v3 (lines 23-25):
   • NHANES 2017-Mar 2020 pre-pandemic combined cycle (P_*) + 2021-Aug 2023 (L_).
   • Adults aged ≥18 with at least one of serum creatinine (LBXSCR) or
     urine albumin/creatinine (URXUMA, URXUCR).
-  • Survey weights: WTMECPRP for P_; WTMEC2YR for L_ (each divided by 2 for
-    combined-cycle weighting, per CDC guidance).
+  • Survey weights (NHANES weighting tutorial; BIOPRO_L documentation):
+    WTMECPRP for P_ (no separate phlebotomy weight in 2017-2020);
+    WTPH2YR (phlebotomy weight) for L_, because the outcome uses serum
+    creatinine. Combined by years covered: P_ x 3.2/5.2, L_ x 2/5.2.
+    The column keeps the name mec_weight for downstream scripts.
   • Target n = 15,150; target survey-weighted CKD prevalence = 13.93%.
 
 Outcome (KDIGO 2024):
@@ -26,8 +31,8 @@ Predictors (deliberately exclude kidney biomarkers):
   self-reported HTN (BPQ020), DM (DIQ010), HF (MCQ160B), stroke (MCQ160F).
 
 Outputs:
-  data/processed/nhanes_phs_cohort.parquet
-  models/stage2_xgb.json
+  data/processed/nhanes_phs_cohort.csv
+  models/stage2_lr.joblib, models/stage2_xgb.json
   outputs/stage2_oof_predictions.csv
   outputs/stage2_metrics.json
   outputs/stage2_calibration_deciles.csv
@@ -41,10 +46,16 @@ import json
 import warnings
 warnings.filterwarnings("ignore")
 
+import joblib
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+from sklearn.compose import make_column_transformer
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.metrics import (roc_auc_score, average_precision_score,
                               brier_score_loss, roc_curve, precision_recall_curve,
                               confusion_matrix)
@@ -60,6 +71,9 @@ for d in [PROC, MODEL_DIR, OUT]:
 
 SEED = 42
 np.random.seed(SEED)
+
+# Years covered by each cycle, for combining weights (Jan 2017-Mar 2020; Aug 2021-Aug 2023)
+CYCLE_YEARS = {"P": 3.2, "L": 2.0}
 
 
 # ── CKD-EPI 2021 race-free eGFR ───────────────────────────────────────────
@@ -136,6 +150,13 @@ def load_cycle(cycle_dir, suffix_kind):
     if "mec_weight" not in df.columns:
         df["mec_weight"] = np.nan
 
+    # 2021-2023: serum creatinine is a blood analyte, so use the phlebotomy weight
+    if suffix_kind == "L":
+        ph = bio[["SEQN", "WTPH2YR"]].copy()
+        ph["SEQN"] = ph["SEQN"].astype(int)
+        df = df.drop(columns="mec_weight").merge(
+            ph.rename(columns={"WTPH2YR": "mec_weight"}), on="SEQN", how="left")
+
     # Lab features (used to compute outcome only)
     if len(bio) and "LBXSCR" in bio.columns:
         bio2 = bio[["SEQN", "LBXSCR"]].copy()
@@ -203,13 +224,13 @@ def build_cohort():
     p_df = load_cycle(os.path.join(RAW, "P_2017-2020"), "P")
     print(f"    P_ DEMO rows: {len(p_df):,}")
     p_df["cycle"] = "P_2017-2020"
-    p_df["mec_weight"] = p_df["mec_weight"] / 2.0  # combined-cycle weighting
+    p_df["mec_weight"] = p_df["mec_weight"] * CYCLE_YEARS["P"] / sum(CYCLE_YEARS.values())
 
     print("\n  Loading L_ cycle (2021-Aug 2023)...")
     l_df = load_cycle(os.path.join(RAW, "L_2021-2022"), "L")
     print(f"    L_ DEMO rows: {len(l_df):,}")
     l_df["cycle"] = "L_2021-2023"
-    l_df["mec_weight"] = l_df["mec_weight"] / 2.0  # combined-cycle weighting
+    l_df["mec_weight"] = l_df["mec_weight"] * CYCLE_YEARS["L"] / sum(CYCLE_YEARS.values())
 
     df = pd.concat([p_df, l_df], ignore_index=True)
     print(f"\n  Combined: {len(df):,} participants")
@@ -365,29 +386,51 @@ FEATURES = ["age", "sex", "race_eth", "pir", "bmi", "sbp", "dbp",
             "htn_self", "dm_self", "hf_self", "stroke_self"]
 
 
+XGB_PARAMS = dict(n_estimators=500, max_depth=4, learning_rate=0.05,
+                  subsample=0.9, colsample_bytree=0.9,
+                  eval_metric="logloss", random_state=SEED, n_jobs=-1)
+
+
+def make_lr(features=FEATURES):
+    """Primary model: L2 logistic regression with median imputation and
+    standardization (fitted within the training data), one-hot race/ethnicity,
+    survey-weighted at fit time. No class reweighting, so predicted
+    probabilities stay on the risk scale."""
+    numeric = [f for f in features if f != "race_eth"]
+    transformers = [(make_pipeline(SimpleImputer(strategy="median"),
+                                   StandardScaler()), numeric)]
+    if "race_eth" in features:
+        transformers.append((OneHotEncoder(handle_unknown="ignore"), ["race_eth"]))
+    return make_pipeline(make_column_transformer(*transformers),
+                         LogisticRegression(C=1.0, max_iter=2000))
+
+
 def train_evaluate(df):
-    X = df[FEATURES].values
+    X = df[FEATURES]
     y = df["ckd"].values
     w = df["mec_weight"].values
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
     oof_probs = np.zeros(len(y))
+    oof_xgb = np.zeros(len(y))
     fold_aurocs = []
 
     for k, (tr, va) in enumerate(skf.split(X, y), 1):
-        model = xgb.XGBClassifier(
-            n_estimators=500, max_depth=4, learning_rate=0.05,
-            subsample=0.9, colsample_bytree=0.9,
-            eval_metric="logloss", random_state=SEED, n_jobs=-1,
-        )
-        model.fit(X[tr], y[tr], sample_weight=w[tr])
-        p = model.predict_proba(X[va])[:, 1]
+        model = make_lr()
+        model.fit(X.iloc[tr], y[tr], logisticregression__sample_weight=w[tr])
+        p = model.predict_proba(X.iloc[va])[:, 1]
         oof_probs[va] = p
         fold_auc = weighted_auroc(y[va], p, w[va])
         fold_aurocs.append(fold_auc)
-        print(f"    Fold {k}: AUROC={fold_auc:.4f}")
+        # Comparator on the same folds
+        xm = xgb.XGBClassifier(**XGB_PARAMS)
+        xm.fit(X.values[tr], y[tr], sample_weight=w[tr])
+        oof_xgb[va] = xm.predict_proba(X.values[va])[:, 1]
+        print(f"    Fold {k}: AUROC={fold_auc:.4f} (XGBoost "
+              f"{weighted_auroc(y[va], oof_xgb[va], w[va]):.4f})")
 
     df["oof_prob"] = oof_probs
+    df["oof_prob_xgb"] = oof_xgb
 
     # Survey-weighted overall metrics
     auroc = weighted_auroc(y, oof_probs, w)
@@ -415,15 +458,13 @@ def train_evaluate(df):
         "fold_aurocs": [round(a, 4) for a in fold_aurocs],
     }
 
-    # Train final model on full data for SHAP / serialization
-    final_model = xgb.XGBClassifier(
-        n_estimators=500, max_depth=4, learning_rate=0.05,
-        subsample=0.9, colsample_bytree=0.9,
-        eval_metric="logloss", random_state=SEED, n_jobs=-1,
-    )
-    final_model.fit(X, y, sample_weight=w)
+    # Final models on the full data for serialization
+    final_model = make_lr()
+    final_model.fit(X, y, logisticregression__sample_weight=w)
+    final_xgb = xgb.XGBClassifier(**XGB_PARAMS)
+    final_xgb.fit(X.values, y, sample_weight=w)
 
-    return df, metrics, cal_df, sg, dc, final_model
+    return df, metrics, cal_df, sg, dc, final_model, final_xgb
 
 
 # ── Main ─────────────────────────────────────────────────────────────────
@@ -436,21 +477,19 @@ if __name__ == "__main__":
     df = build_cohort()
 
     # 2. Train + evaluate
-    print("\n  5-fold stratified CV (NHANES MEC weights):")
-    df, metrics, cal_df, sg_df, dc_df, model = train_evaluate(df)
+    print("\n  5-fold stratified CV (NHANES survey weights):")
+    df, metrics, cal_df, sg_df, dc_df, model, xgb_model = train_evaluate(df)
 
     # 3. Save outputs
-    cohort_path = os.path.join(PROC, "nhanes_phs_cohort.parquet")
-    try:
-        df.to_parquet(cohort_path, index=False)
-    except Exception:
-        cohort_path = cohort_path.replace(".parquet", ".csv")
-        df.to_csv(cohort_path, index=False)
+    # CSV always: downstream scripts read nhanes_phs_cohort.csv
+    cohort_path = os.path.join(PROC, "nhanes_phs_cohort.csv")
+    df.to_csv(cohort_path, index=False)
     print(f"\n  Saved cohort → {cohort_path}")
 
-    model.save_model(os.path.join(MODEL_DIR, "stage2_xgb.json"))
+    joblib.dump(model, os.path.join(MODEL_DIR, "stage2_lr.joblib"))
+    xgb_model.save_model(os.path.join(MODEL_DIR, "stage2_xgb.json"))
     df[["SEQN", "cycle", "mec_weight", "age", "sex", "race_eth",
-        "ckd", "oof_prob"]].to_csv(
+        "ckd", "oof_prob", "oof_prob_xgb"]].to_csv(
         os.path.join(OUT, "stage2_oof_predictions.csv"), index=False)
 
     with open(os.path.join(OUT, "stage2_metrics.json"), "w") as f:

@@ -9,5 +9,15 @@
   "loro_r2_min": 0.2323,
   "loro_r2_max": 0.4163,
   "spearman_rho_oof": 0.6749,
+  "state_blocked_5fold_r2_mean": 0.4158,
+  "state_blocked_5fold_r2_std": 0.1083,
+  "state_blocked_5fold_mae": 0.4654,
+  "county_blocked_5fold_r2_mean": 0.4334,
+  "county_blocked_5fold_r2_std": 0.0354,
+  "county_blocked_5fold_mae": 0.4563,
+  "natrank_only_random_5fold_r2_mean": 0.4149,
+  "natrank_only_random_5fold_r2_std": 0.0088,
+  "calibration_slope_tract": 0.9968,
+  "calibration_intercept_tract": 0.0101,
   "manuscript_target_r2": 0.444
 }

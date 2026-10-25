@@ -3,11 +3,12 @@ src/stage2_supplementary.py
 ---------------------------
 Supplementary Stage 2 analyses (JMIR PHS revision, v6). Run after
 src/train_nhanes_model.py, which writes the analytic cohort with
-out-of-fold XGBoost predictions.
+out-of-fold predictions from the primary logistic regression (oof_prob)
+and the XGBoost comparator (oof_prob_xgb).
 
   1. Design-based 95% CIs for every headline metric: Rao-Wu rescaled
      bootstrap (1,000 replicates) resampling NHANES masked variance PSUs
-     (SDMVPSU) within masked variance strata (SDMVSTRA), using MEC weights.
+     (SDMVPSU) within masked variance strata (SDMVSTRA), using the survey weights.
      Out-of-fold predictions are held fixed, so the CIs reflect sampling
      uncertainty of the evaluation sample.
   2. (Moved) The logistic regression comparison is in
@@ -17,6 +18,8 @@ out-of-fold XGBoost predictions.
      training fold only.
   4. Operating points at 95/90/80/70/60% survey-weighted specificity.
   5. Race-free sensitivity model (race/ethnicity removed as a predictor).
+  Sensitivity analyses that refit a model (3, 5, 9) refit the primary
+  logistic regression.
   6. Demographic-only logistic baselines (age+sex; +race, PIR, BMI) to show
      the incremental value of blood pressure and self-reported conditions.
   7. Self-report bias check: measured hypertension among adults reporting
@@ -26,6 +29,9 @@ out-of-fold XGBoost predictions.
   9. Outcome-component completeness (creatinine and/or UACR) and
      performance restricted to participants with both.
  10. CKD awareness (self-reported vs measured CKD) by income-to-poverty ratio.
+ 11. The logistic regression coefficients in original units (race/ethnicity
+     relative to NH White), and the XGBoost comparator's calibration,
+     operating points and subgroup performance with the same design-based CIs.
 Calibration also includes the logistic intercept, a flexible spline
 calibration curve with design-based pointwise CIs, ICI/E50/E90, and the
 Brier skill score.
@@ -40,6 +46,8 @@ Outputs (ckd_pipeline/outputs/):
   stage2_unreported_hypertension.json
   stage2_calibration_flexible.csv, tableS5_subgroup_operating.csv
   stage2_outcome_components.json, stage2_ckd_awareness.json
+  stage2_lr_coefficients.csv, stage2_xgb_metrics_ci.json,
+  tableS4_operating_points_xgb.csv, tableS5_subgroup_operating_xgb.csv
 (The XGBoost vs logistic regression comparison is in
 src/stage2_model_comparison.py.)
 """
@@ -51,26 +59,20 @@ warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-import xgboost as xgb
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
-from sklearn.compose import make_column_transformer
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
 from sklearn.metrics import roc_curve
 
 from train_nhanes_model import (
-    RAW, PROC, OUT, SEED, FEATURES, weighted_auroc, weighted_auprc,
-    weighted_brier, calibration_deciles, sensitivity_at_specificity,
+    RAW, PROC, OUT, SEED, FEATURES, make_lr, weighted_auroc,
+    weighted_auprc, weighted_brier, calibration_deciles,
+    sensitivity_at_specificity,
 )
 
 N_BOOT = 1000
-XGB_PARAMS = dict(n_estimators=500, max_depth=4, learning_rate=0.05,
-                  subsample=0.9, colsample_bytree=0.9,
-                  eval_metric="logloss", random_state=SEED, n_jobs=-1)
 
 
 # ── Data ────────────────────────────────────────────────────────────────
@@ -170,8 +172,8 @@ def flexible_calibration(y, p, w):
 
 def ci(values):
     v = np.asarray([x for x in values if x is not None and np.isfinite(x)])
-    return [round(float(np.percentile(v, 2.5)), 4),
-            round(float(np.percentile(v, 97.5)), 4)]
+    return [round(float(np.percentile(v, 2.5)), 6),
+            round(float(np.percentile(v, 97.5)), 6)]
 
 
 def sens_at_threshold(y, p, w, thr):
@@ -179,25 +181,49 @@ def sens_at_threshold(y, p, w, thr):
     return float(w[pos & (p >= thr)].sum() / w[pos].sum())
 
 
-# ── Comparator: logistic regression on identical features and folds ────
+# ── Primary model (logistic regression) refit on other feature sets ─────
 def lr_oof(df, features=FEATURES):
     X = df[features]
     y = df["ckd"].values
     w = df["mec_weight"].values
-    numeric = [f for f in features if f != "race_eth"]
-    transformers = [(make_pipeline(SimpleImputer(strategy="median"),
-                                   StandardScaler()), numeric)]
-    if "race_eth" in features:
-        transformers.append((OneHotEncoder(handle_unknown="ignore"), ["race_eth"]))
-    pre = make_column_transformer(*transformers)
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
     oof = np.zeros(len(y))
     for tr, va in skf.split(X, y):
-        model = make_pipeline(pre, LogisticRegression(
-            C=1.0, class_weight="balanced", max_iter=2000))
+        model = make_lr(features)
         model.fit(X.iloc[tr], y[tr], logisticregression__sample_weight=w[tr])
         oof[va] = model.predict_proba(X.iloc[va])[:, 1]
     return oof
+
+
+RACE_REF = 3  # NH White
+
+
+def lr_coefficients(model, features=FEATURES):
+    """Back-transform a fitted make_lr() pipeline to original units:
+    log-odds per unit of each predictor (median-imputed), race/ethnicity
+    relative to NH White. The linear predictor is unchanged."""
+    ct = model.steps[0][1]
+    lr = model.steps[-1][1]
+    beta = lr.coef_[0]
+    numeric = [f for f in features if f != "race_eth"]
+    num_pipe = ct.named_transformers_["pipeline"]
+    medians = num_pipe.named_steps["simpleimputer"].statistics_
+    mean = num_pipe.named_steps["standardscaler"].mean_
+    scale = num_pipe.named_steps["standardscaler"].scale_
+    b_num = beta[:len(numeric)] / scale
+    intercept = lr.intercept_[0] - float(np.sum(beta[:len(numeric)] * mean / scale))
+    cats = ct.named_transformers_["onehotencoder"].categories_[0]
+    b_cat = dict(zip(cats, beta[len(numeric):]))
+    ref = b_cat[RACE_REF]
+    intercept += ref
+    rows = [{"term": "intercept", "coef": intercept, "odds_ratio": np.nan,
+             "imputation_median": np.nan}]
+    rows += [{"term": f, "coef": b, "odds_ratio": np.exp(b), "imputation_median": m}
+             for f, b, m in zip(numeric, b_num, medians)]
+    rows += [{"term": f"race_eth={int(c)}", "coef": b - ref,
+              "odds_ratio": np.exp(b - ref), "imputation_median": np.nan}
+             for c, b in b_cat.items() if c != RACE_REF]
+    return pd.DataFrame(rows)
 
 
 # ── Multiple-imputation sensitivity ─────────────────────────────────────
@@ -212,10 +238,10 @@ def mi_sensitivity(df, m=5):
         for tr, va in skf.split(X, y):
             imp = IterativeImputer(sample_posterior=True, max_iter=10,
                                    random_state=SEED + k)
-            Xtr = imp.fit_transform(X[tr])
-            Xva = imp.transform(X[va])
-            model = xgb.XGBClassifier(**XGB_PARAMS)
-            model.fit(Xtr, y[tr], sample_weight=w[tr])
+            Xtr = pd.DataFrame(imp.fit_transform(X[tr]), columns=FEATURES)
+            Xva = pd.DataFrame(imp.transform(X[va]), columns=FEATURES)
+            model = make_lr()  # its median imputer is a no-op on imputed data
+            model.fit(Xtr, y[tr], logisticregression__sample_weight=w[tr])
             oof[va] = model.predict_proba(Xva)[:, 1]
         aurocs.append(weighted_auroc(y, oof, w))
         print(f"    imputation {k + 1}/{m}: AUROC={aurocs[-1]:.4f}")
@@ -253,7 +279,7 @@ if __name__ == "__main__":
     # 1. Point estimates + design-based bootstrap CIs
     _, cal_slope, cal_int = calibration_deciles(y, p, w)
     sens, _, thr = sensitivity_at_specificity(y, p, w, 0.90)
-    p_lr = lr_oof(df)  # full-feature LR, used by the nested baselines (section 6)
+    p_lr = p  # the primary model is the full-feature LR (nested baselines, section 6)
 
     print(f"Rao-Wu bootstrap ({N_BOOT} replicates)...")
     reps = rao_wu_replicates(df)
@@ -316,27 +342,27 @@ if __name__ == "__main__":
         os.path.join(OUT, "stage2_calibration_flexible.csv"), index=False)
     metrics_ci = {
         "ci_method": "Rao-Wu rescaled bootstrap over SDMVPSU within SDMVSTRA, "
-                     f"{N_BOOT} replicates, MEC weights, fixed OOF predictions",
-        "auroc": round(auroc, 4), "auroc_ci": ci(boot["auroc"]),
-        "auprc": round(weighted_auprc(y, p, w), 4), "auprc_ci": ci(boot["auprc"]),
-        "brier": round(weighted_brier(y, p, w), 4), "brier_ci": ci(boot["brier"]),
-        "calibration_slope": round(cal_slope, 4),
+                     f"{N_BOOT} replicates, survey weights, fixed OOF predictions",
+        "auroc": round(auroc, 6), "auroc_ci": ci(boot["auroc"]),
+        "auprc": round(weighted_auprc(y, p, w), 6), "auprc_ci": ci(boot["auprc"]),
+        "brier": round(weighted_brier(y, p, w), 6), "brier_ci": ci(boot["brier"]),
+        "calibration_slope": round(cal_slope, 6),
         "calibration_slope_ci": ci(boot["cal_slope"]),
-        "calibration_intercept": round(cal_int, 4),
-        "logistic_calibration_slope": round(logistic_calibration(y, p, w)[0], 4),
+        "calibration_intercept": round(cal_int, 6),
+        "logistic_calibration_slope": round(logistic_calibration(y, p, w)[0], 6),
         "logistic_calibration_slope_ci": ci(boot["logit_slope"]),
-        "calibration_in_the_large": round(logistic_calibration(y, p, w)[1], 4),
+        "calibration_in_the_large": round(logistic_calibration(y, p, w)[1], 6),
         "calibration_in_the_large_ci": ci(boot["citl"]),
-        "logistic_calibration_intercept": round(logistic_intercept(y, p, w), 4),
+        "logistic_calibration_intercept": round(logistic_intercept(y, p, w), 6),
         "logistic_calibration_intercept_ci": ci(boot["logit_int"]),
-        "ici": round(flex["ici"], 4), "ici_ci": ci(boot["ici"]),
-        "e50": round(flex["e50"], 4), "e50_ci": ci(boot["e50"]),
-        "e90": round(flex["e90"], 4), "e90_ci": ci(boot["e90"]),
-        "brier_null": round(float(np.average(y, weights=w) * (1 - np.average(y, weights=w))), 4),
-        "brier_skill_score": round(brier_skill(y, p, w), 4),
+        "ici": round(flex["ici"], 6), "ici_ci": ci(boot["ici"]),
+        "e50": round(flex["e50"], 6), "e50_ci": ci(boot["e50"]),
+        "e90": round(flex["e90"], 6), "e90_ci": ci(boot["e90"]),
+        "brier_null": round(float(np.average(y, weights=w) * (1 - np.average(y, weights=w))), 6),
+        "brier_skill_score": round(brier_skill(y, p, w), 6),
         "brier_skill_score_ci": ci(boot["bss"]),
-        "threshold_90pct_spec": round(thr, 4),
-        "sensitivity_at_90pct_spec": round(sens, 4),
+        "threshold_90pct_spec": round(thr, 6),
+        "sensitivity_at_90pct_spec": round(sens, 6),
         "sensitivity_ci": ci(boot["sens_at_op"]),
     }
     with open(os.path.join(OUT, "stage2_metrics_ci.json"), "w") as f:
@@ -365,15 +391,9 @@ if __name__ == "__main__":
     op.to_csv(os.path.join(OUT, "tableS4_operating_points.csv"), index=False)
 
     # 5. Race-free sensitivity model (race/ethnicity dropped as a predictor)
-    print("Race-free XGBoost...")
+    print("Race-free model...")
     feats_nr = [f for f in FEATURES if f != "race_eth"]
-    Xnr = df[feats_nr].values
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
-    p_nr = np.zeros(len(y))
-    for tr, va in skf.split(Xnr, y):
-        model = xgb.XGBClassifier(**XGB_PARAMS)
-        model.fit(Xnr[tr], y[tr], sample_weight=w[tr])
-        p_nr[va] = model.predict_proba(Xnr[va])[:, 1]
+    p_nr = lr_oof(df, feats_nr)
     d_nr = [weighted_auroc(y[rw > 0], p[rw > 0], rw[rw > 0])
             - weighted_auroc(y[rw > 0], p_nr[rw > 0], rw[rw > 0]) for rw in reps]
     race_free = {
@@ -446,23 +466,26 @@ if __name__ == "__main__":
                 "citl": np.average(yy, weights=ww) - np.average(pp, weights=ww),
                 "logistic_slope": logistic_calibration(yy, pp, ww)[0]}
 
-    op_rows = []
-    for label, mask in [("All", pd.Series(True, index=df.index))] + groups:
-        mk = mask.values
-        est = op_metrics(y[mk], flag[mk], w[mk], p[mk])
-        bt = {k: [] for k in est}
-        for rw in reps:
-            k_ = mk & (rw > 0)
-            if len(np.unique(y[k_])) == 2:
-                for k, v in op_metrics(y[k_], flag[k_], rw[k_], p[k_]).items():
-                    bt[k].append(v)
-        row = {"subgroup": label, "n": int(mk.sum()), "events": int(y[mk].sum())}
-        for k, v in est.items():
-            lo, hi = ci(bt[k])
-            row[k] = round(float(v), 4)
-            row[f"{k}_ci"] = f"{lo:.4f}–{hi:.4f}"
-        op_rows.append(row)
-    sg_op = pd.DataFrame(op_rows)
+    def subgroup_operating(pp, ff):
+        op_rows = []
+        for label, mask in [("All", pd.Series(True, index=df.index))] + groups:
+            mk = mask.values
+            est = op_metrics(y[mk], ff[mk], w[mk], pp[mk])
+            bt = {k: [] for k in est}
+            for rw in reps:
+                k_ = mk & (rw > 0)
+                if len(np.unique(y[k_])) == 2:
+                    for k, v in op_metrics(y[k_], ff[k_], rw[k_], pp[k_]).items():
+                        bt[k].append(v)
+            row = {"subgroup": label, "n": int(mk.sum()), "events": int(y[mk].sum())}
+            for k, v in est.items():
+                lo, hi = ci(bt[k])
+                row[k] = round(float(v), 6)
+                row[f"{k}_ci"] = f"{lo:.6f}–{hi:.6f}"
+            op_rows.append(row)
+        return pd.DataFrame(op_rows)
+
+    sg_op = subgroup_operating(p, flag)
     sg_op.to_csv(os.path.join(OUT, "tableS5_subgroup_operating.csv"), index=False)
 
     # 9. Outcome components: the CKD label is eGFR<60 OR UACR>=30, so a
@@ -482,12 +505,8 @@ if __name__ == "__main__":
         [weighted_auroc(y[both & (rw > 0)], p[both & (rw > 0)], rw[both & (rw > 0)]) for rw in reps])
     # Refit the model on participants with both components only
     db = df[both].reset_index(drop=True)
-    Xb, yb_, wb_ = db[FEATURES].values, db["ckd"].values, db["mec_weight"].values
-    pb_ = np.zeros(len(yb_))
-    for tr, va in StratifiedKFold(5, shuffle=True, random_state=SEED).split(Xb, yb_):
-        m_ = xgb.XGBClassifier(**XGB_PARAMS)
-        m_.fit(Xb[tr], yb_[tr], sample_weight=wb_[tr])
-        pb_[va] = m_.predict_proba(Xb[va])[:, 1]
+    yb_, wb_ = db["ckd"].values, db["mec_weight"].values
+    pb_ = lr_oof(db)
     comp["auroc_refit_on_both"] = round(weighted_auroc(yb_, pb_, wb_), 4)
     with open(os.path.join(OUT, "stage2_outcome_components.json"), "w") as f:
         json.dump(comp, f, indent=2)
@@ -533,6 +552,64 @@ if __name__ == "__main__":
     with open(os.path.join(OUT, "stage2_ckd_awareness.json"), "w") as f:
         json.dump(aware, f, indent=2)
 
+    # 11. The primary logistic regression's coefficients (fit on the whole
+    #     cohort), and the XGBoost comparator's out-of-fold calibration,
+    #     operating points and subgroup performance with the same design-based CIs
+    print("Coefficients and XGBoost comparator...")
+    lr_full = make_lr()
+    lr_full.fit(df[FEATURES], y, logisticregression__sample_weight=w)
+    coefs = lr_coefficients(lr_full)
+    coefs.round(5).to_csv(os.path.join(OUT, "stage2_lr_coefficients.csv"), index=False)
+    p_x = df["oof_prob_xgb"].values
+    sens_x, _, thr_x = sensitivity_at_specificity(y, p_x, w, 0.90)
+    x_boot = {k: [] for k in ["auroc", "auprc", "brier", "logit_slope", "citl",
+                               "logit_int", "bss", "ici", "e50", "e90", "sens_at_op"]}
+    for rw in reps:
+        keep = rw > 0
+        yb, pb, wb = y[keep], p_x[keep], rw[keep]
+        x_boot["auroc"].append(weighted_auroc(yb, pb, wb))
+        x_boot["auprc"].append(weighted_auprc(yb, pb, wb))
+        x_boot["brier"].append(weighted_brier(yb, pb, wb))
+        ls, cl = logistic_calibration(yb, pb, wb)
+        x_boot["logit_slope"].append(ls)
+        x_boot["citl"].append(cl)
+        x_boot["logit_int"].append(logistic_intercept(yb, pb, wb))
+        x_boot["bss"].append(brier_skill(yb, pb, wb))
+        fl = flexible_calibration(yb, pb, wb)
+        for k in ("ici", "e50", "e90"):
+            x_boot[k].append(fl[k])
+        x_boot["sens_at_op"].append(sens_at_threshold(yb, pb, wb, thr_x))
+    fl = flexible_calibration(y, p_x, w)
+    ls, cl = logistic_calibration(y, p_x, w)
+    x_metrics = {
+        "model": "XGBoost comparator (native missing-value handling), "
+                 "survey-weighted; out-of-fold predictions on the primary model's folds",
+        "ci_method": metrics_ci["ci_method"],
+        "auroc": round(weighted_auroc(y, p_x, w), 6), "auroc_ci": ci(x_boot["auroc"]),
+        "auprc": round(weighted_auprc(y, p_x, w), 6), "auprc_ci": ci(x_boot["auprc"]),
+        "brier": round(weighted_brier(y, p_x, w), 6), "brier_ci": ci(x_boot["brier"]),
+        "logistic_calibration_slope": round(ls, 6),
+        "logistic_calibration_slope_ci": ci(x_boot["logit_slope"]),
+        "calibration_in_the_large": round(cl, 6),
+        "calibration_in_the_large_ci": ci(x_boot["citl"]),
+        "logistic_calibration_intercept": round(logistic_intercept(y, p_x, w), 6),
+        "logistic_calibration_intercept_ci": ci(x_boot["logit_int"]),
+        "ici": round(fl["ici"], 6), "ici_ci": ci(x_boot["ici"]),
+        "e50": round(fl["e50"], 6), "e50_ci": ci(x_boot["e50"]),
+        "e90": round(fl["e90"], 6), "e90_ci": ci(x_boot["e90"]),
+        "brier_skill_score": round(brier_skill(y, p_x, w), 6),
+        "brier_skill_score_ci": ci(x_boot["bss"]),
+        "threshold_90pct_spec": round(thr_x, 6),
+        "sensitivity_at_90pct_spec": round(sens_x, 6),
+        "sensitivity_ci": ci(x_boot["sens_at_op"]),
+    }
+    with open(os.path.join(OUT, "stage2_xgb_metrics_ci.json"), "w") as f:
+        json.dump(x_metrics, f, indent=2)
+    operating_points(y, p_x, w).to_csv(
+        os.path.join(OUT, "tableS4_operating_points_xgb.csv"), index=False)
+    sg_op_x = subgroup_operating(p_x, p_x >= thr_x)
+    sg_op_x.to_csv(os.path.join(OUT, "tableS5_subgroup_operating_xgb.csv"), index=False)
+
     print(sg_op.to_string(index=False))
     print(json.dumps(comp, indent=2))
     print(json.dumps(aware, indent=2))
@@ -544,3 +621,6 @@ if __name__ == "__main__":
     print(json.dumps(race_free, indent=2))
     print(json.dumps(baselines, indent=2))
     print(json.dumps(unaware, indent=2))
+    print(coefs.round(4).to_string(index=False))
+    print(json.dumps(x_metrics, indent=2))
+    print(sg_op_x.to_string(index=False))

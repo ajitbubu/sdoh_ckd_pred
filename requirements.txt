@@ -1,0 +1,10 @@
+# Versions used to produce the reported results (Python 3.11)
+numpy==2.4.6
+pandas==3.0.6
+scipy==1.17.1
+scikit-learn==1.8.0
+xgboost==3.2.0
+matplotlib==3.11.2
+joblib==1.6.0
+# Manuscript build only (also requires pandoc)
+python-docx==1.2.0

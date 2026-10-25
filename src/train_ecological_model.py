@@ -54,7 +54,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from sklearn.model_selection import KFold
+from sklearn.model_selection import GroupKFold, KFold
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from scipy import stats
 
@@ -224,6 +224,9 @@ def leave_one_region_out(df):
                                                mo=("obs",  "mean")).reset_index()
         slope, intercept, _, _, _ = stats.linregress(decile_means["mp"],
                                                        decile_means["mo"])
+        # Tract-level regression of observed on predicted (binning pulls
+        # the slope toward 1, so report this as well)
+        t_slope, t_int, _, _, _ = stats.linregress(pred, y_te)
         rows.append({
             "held_out_region": region,
             "n_test": int(test_mask.sum()),
@@ -232,6 +235,8 @@ def leave_one_region_out(df):
             "rmse": round(np.sqrt(mean_squared_error(y_te, pred)), 4),
             "calibration_slope": round(float(slope), 4),
             "calibration_intercept": round(float(intercept), 4),
+            "calibration_slope_tract": round(float(t_slope), 4),
+            "calibration_intercept_tract": round(float(t_int), 4),
         })
         print(f"    Hold out {region:<10s}: R²={rows[-1]['r2']:.4f}  "
                f"MAE={rows[-1]['mae']:.4f}  cal_slope={rows[-1]['calibration_slope']:.3f}")
@@ -288,6 +293,49 @@ def calibration_report(df):
     return cal, float(slope), float(intercept)
 
 
+def spatial_and_feature_checks(df):
+    """Sensitivity analyses for Stage 1:
+      - spatially blocked 5-fold CV (whole states, then whole counties, held
+        out together), since random folds put neighbouring tracts on both
+        sides of a split and spatial autocorrelation can inflate R²;
+      - random 5-fold CV with the national ADI rank alone: the state rank
+        and national rank together partly identify the state, so the full
+        model's R² can absorb between-state differences;
+      - tract-level regression of observed on out-of-fold predicted."""
+    print("\n  Spatially blocked CV and national-rank-only model...")
+    y = df[TARGET].values
+    out = {}
+    for name, groups in [("state", df["StateAbbr"].values),
+                         ("county", df["TractFIPS"].str[:5].values)]:
+        X = df[FEATURES].values
+        oof = np.zeros(len(y))
+        r2s = []
+        gkf = GroupKFold(n_splits=5, shuffle=True, random_state=SEED)
+        for tr, va in gkf.split(X, y, groups):
+            _, pred = fit_xgb(X[tr], y[tr], X[va], y[va])
+            oof[va] = pred
+            r2s.append(r2_score(y[va], pred))
+        out[f"{name}_blocked_5fold_r2_mean"] = round(float(np.mean(r2s)), 4)
+        out[f"{name}_blocked_5fold_r2_std"] = round(float(np.std(r2s, ddof=1)), 4)
+        out[f"{name}_blocked_5fold_mae"] = round(float(mean_absolute_error(y, oof)), 4)
+        print(f"    {name}-blocked: R² = {np.mean(r2s):.4f} ± {np.std(r2s, ddof=1):.4f}")
+
+    X = df[["adi_natrank"]].values
+    r2s = []
+    for tr, va in KFold(n_splits=5, shuffle=True, random_state=SEED).split(X):
+        _, pred = fit_xgb(X[tr], y[tr], X[va], y[va])
+        r2s.append(r2_score(y[va], pred))
+    out["natrank_only_random_5fold_r2_mean"] = round(float(np.mean(r2s)), 4)
+    out["natrank_only_random_5fold_r2_std"] = round(float(np.std(r2s, ddof=1)), 4)
+    print(f"    national rank only: R² = {np.mean(r2s):.4f}")
+
+    slope, intercept, _, _, _ = stats.linregress(df["oof_pred"], y)
+    out["calibration_slope_tract"] = round(float(slope), 4)
+    out["calibration_intercept_tract"] = round(float(intercept), 4)
+    print(f"    tract-level calibration: slope = {slope:.4f}, intercept = {intercept:.4f}")
+    return out
+
+
 def predictions_by_quintile(df):
     # Tracts whose block groups are all ADI-suppressed (GQ/PH/QDI) have no
     # quintile; they stay in the model (XGBoost handles NaN) but not here.
@@ -324,6 +372,7 @@ if __name__ == "__main__":
     capacity_results = capacity_sweep(df)
     ofat_results = capacity_sweep(df, OFAT_SETTINGS)
     cal_df, cal_slope, cal_intercept = calibration_report(df)
+    checks = spatial_and_feature_checks(df)
     quintile_df = predictions_by_quintile(df)
     importance_df = feature_importance(df)
 
@@ -340,6 +389,7 @@ if __name__ == "__main__":
         # Rank agreement of out-of-fold predictions with PLACES (for tract
         # prioritization), reported alongside R² (point-estimate accuracy)
         "spearman_rho_oof": round(float(stats.spearmanr(df["oof_pred"], df[TARGET])[0]), 4),
+        **checks,
         "manuscript_target_r2": 0.444,
     }
 

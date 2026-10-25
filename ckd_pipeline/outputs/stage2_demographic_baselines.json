@@ -5,10 +5,10 @@
       "age",
       "sex"
     ],
-    "auroc": 0.7284,
+    "auroc": 0.7258,
     "auroc_ci": [
-      0.7171,
-      0.7405
+      0.714079,
+      0.738221
     ]
   },
   "demographics_bmi": {
@@ -19,10 +19,10 @@
       "pir",
       "bmi"
     ],
-    "auroc": 0.7481,
+    "auroc": 0.7458,
     "auroc_ci": [
-      0.7355,
-      0.7622
+      0.733222,
+      0.760358
     ]
   },
   "full": {
@@ -39,24 +39,24 @@
       "hf_self",
       "stroke_self"
     ],
-    "auroc": 0.7783,
+    "auroc": 0.7758,
     "auroc_ci": [
-      0.7638,
-      0.7934
+      0.761842,
+      0.790287
     ]
   },
   "delta_full_minus_age_sex": {
-    "estimate": 0.0499,
+    "estimate": 0.05,
     "ci": [
-      0.0428,
-      0.0574
+      0.041827,
+      0.058684
     ]
   },
   "delta_full_minus_demographics_bmi": {
-    "estimate": 0.0302,
+    "estimate": 0.03,
     "ci": [
-      0.0242,
-      0.036
+      0.024071,
+      0.035869
     ]
   }
 }

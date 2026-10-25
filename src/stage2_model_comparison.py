@@ -5,10 +5,11 @@ XGBoost vs logistic regression for the Stage 2 classifier, compared on equal
 terms and with uncertainty that respects both the CV and the survey design.
 
 Models (identical predictors, identical 5-fold stratified CV):
-  xgb_native   XGBoost with native missing-value handling (primary model)
+  xgb_native   XGBoost with native missing-value handling (comparator)
   xgb_median   XGBoost with median imputation fitted inside each training fold
-  lr_median    L2 logistic regression with the same median imputation
-               (+ standardization, one-hot race/ethnicity, balanced weights)
+  lr_median    L2 logistic regression with the same median imputation (primary model)
+               (+ standardization, one-hot race/ethnicity; survey weights,
+               no class reweighting)
 
 Uncertainty: Rao-Wu rescaled bootstrap over NHANES PSUs within strata; in
 each replicate the full 5-fold CV is re-run on the replicate sample with
@@ -33,9 +34,8 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from train_nhanes_model import OUT, SEED, FEATURES, weighted_auroc
-from stage2_supplementary import (XGB_PARAMS, load_cohort_with_design,
-                                  rao_wu_replicates, ci)
+from train_nhanes_model import OUT, SEED, FEATURES, XGB_PARAMS, weighted_auroc
+from stage2_supplementary import load_cohort_with_design, rao_wu_replicates, ci
 
 N_REFIT_BOOT = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 NUMERIC = [f for f in FEATURES if f != "race_eth"]
@@ -51,8 +51,7 @@ def make_models():
         "xgb_native": make_pipeline(make_column_transformer(("passthrough", FEATURES)),
                                     xgb.XGBClassifier(**XGB_PARAMS)),
         "xgb_median": make_pipeline(med, xgb.XGBClassifier(**XGB_PARAMS)),
-        "lr_median": make_pipeline(lr_pre, LogisticRegression(
-            C=1.0, class_weight="balanced", max_iter=2000)),
+        "lr_median": make_pipeline(lr_pre, LogisticRegression(C=1.0, max_iter=2000)),
     }
 
 
@@ -89,7 +88,7 @@ if __name__ == "__main__":
     out = {
         "method": "5-fold stratified CV re-run inside each of "
                   f"{N_REFIT_BOOT} Rao-Wu PSU-within-strata bootstrap replicates; "
-                  "replicate MEC weights; percentile 95% CIs; no p-values",
+                  "replicate survey weights; percentile 95% CIs; no p-values",
         "models": {k: {"auroc": round(est[k], 4), "auroc_ci": ci(boot[k])} for k in est},
         "delta_xgb_median_minus_lr_median": {
             "estimate": round(est["xgb_median"] - est["lr_median"], 4),
