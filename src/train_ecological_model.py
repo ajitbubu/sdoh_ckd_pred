@@ -166,6 +166,9 @@ def build_dataset():
     print(f"    ADI tract rows: {len(adi):,}")
 
     df = places.merge(adi, on="TractFIPS", how="inner")
+    # The PLACES export does not return rows in a stable order, and the CV
+    # folds depend on row order; sort so results do not depend on the download
+    df = df.sort_values("TractFIPS").reset_index(drop=True)
     print(f"\n  Joined PLACES ∩ ADI: {len(df):,} tracts")
     return df, source
 
@@ -197,8 +200,8 @@ def random_5fold(df):
         r2  = r2_score(y[va], pred)
         mae = mean_absolute_error(y[va], pred)
         rmse = np.sqrt(mean_squared_error(y[va], pred))
-        rows.append({"fold": k, "r2": round(r2, 4),
-                      "mae": round(mae, 4), "rmse": round(rmse, 4)})
+        rows.append({"fold": k, "r2": round(r2, 6),
+                      "mae": round(mae, 6), "rmse": round(rmse, 6)})
         print(f"    Fold {k}: R²={r2:.4f}  MAE={mae:.4f}  RMSE={rmse:.4f}")
     df["oof_pred"] = oof
     return pd.DataFrame(rows), df
@@ -230,13 +233,13 @@ def leave_one_region_out(df):
         rows.append({
             "held_out_region": region,
             "n_test": int(test_mask.sum()),
-            "r2":   round(r2_score(y_te, pred), 4),
-            "mae":  round(mean_absolute_error(y_te, pred), 4),
-            "rmse": round(np.sqrt(mean_squared_error(y_te, pred)), 4),
-            "calibration_slope": round(float(slope), 4),
-            "calibration_intercept": round(float(intercept), 4),
-            "calibration_slope_tract": round(float(t_slope), 4),
-            "calibration_intercept_tract": round(float(t_int), 4),
+            "r2":   round(r2_score(y_te, pred), 6),
+            "mae":  round(mean_absolute_error(y_te, pred), 6),
+            "rmse": round(np.sqrt(mean_squared_error(y_te, pred)), 6),
+            "calibration_slope": round(float(slope), 6),
+            "calibration_intercept": round(float(intercept), 6),
+            "calibration_slope_tract": round(float(t_slope), 6),
+            "calibration_intercept_tract": round(float(t_int), 6),
         })
         print(f"    Hold out {region:<10s}: R²={rows[-1]['r2']:.4f}  "
                f"MAE={rows[-1]['mae']:.4f}  cal_slope={rows[-1]['calibration_slope']:.3f}")
@@ -274,8 +277,8 @@ def capacity_sweep(df, settings=None):
         for tr, va in kf.split(X):
             _, pred = fit_xgb(X[tr], y[tr], X[va], y[va], **s)
             r2s.append(r2_score(y[va], pred))
-        rows.append({**s, "r2_mean": round(float(np.mean(r2s)), 4),
-                     "r2_std": round(float(np.std(r2s)), 4)})
+        rows.append({**s, "r2_mean": round(float(np.mean(r2s)), 6),
+                     "r2_std": round(float(np.std(r2s)), 6)})
         print(f"    {s}  →  R² = {rows[-1]['r2_mean']:.4f} ± {rows[-1]['r2_std']:.4f}")
     return pd.DataFrame(rows)
 
@@ -315,9 +318,9 @@ def spatial_and_feature_checks(df):
             _, pred = fit_xgb(X[tr], y[tr], X[va], y[va])
             oof[va] = pred
             r2s.append(r2_score(y[va], pred))
-        out[f"{name}_blocked_5fold_r2_mean"] = round(float(np.mean(r2s)), 4)
-        out[f"{name}_blocked_5fold_r2_std"] = round(float(np.std(r2s, ddof=1)), 4)
-        out[f"{name}_blocked_5fold_mae"] = round(float(mean_absolute_error(y, oof)), 4)
+        out[f"{name}_blocked_5fold_r2_mean"] = round(float(np.mean(r2s)), 6)
+        out[f"{name}_blocked_5fold_r2_std"] = round(float(np.std(r2s, ddof=1)), 6)
+        out[f"{name}_blocked_5fold_mae"] = round(float(mean_absolute_error(y, oof)), 6)
         print(f"    {name}-blocked: R² = {np.mean(r2s):.4f} ± {np.std(r2s, ddof=1):.4f}")
 
     X = df[["adi_natrank"]].values
@@ -325,13 +328,13 @@ def spatial_and_feature_checks(df):
     for tr, va in KFold(n_splits=5, shuffle=True, random_state=SEED).split(X):
         _, pred = fit_xgb(X[tr], y[tr], X[va], y[va])
         r2s.append(r2_score(y[va], pred))
-    out["natrank_only_random_5fold_r2_mean"] = round(float(np.mean(r2s)), 4)
-    out["natrank_only_random_5fold_r2_std"] = round(float(np.std(r2s, ddof=1)), 4)
+    out["natrank_only_random_5fold_r2_mean"] = round(float(np.mean(r2s)), 6)
+    out["natrank_only_random_5fold_r2_std"] = round(float(np.std(r2s, ddof=1)), 6)
     print(f"    national rank only: R² = {np.mean(r2s):.4f}")
 
     slope, intercept, _, _, _ = stats.linregress(df["oof_pred"], y)
-    out["calibration_slope_tract"] = round(float(slope), 4)
-    out["calibration_intercept_tract"] = round(float(intercept), 4)
+    out["calibration_slope_tract"] = round(float(slope), 6)
+    out["calibration_intercept_tract"] = round(float(intercept), 6)
     print(f"    tract-level calibration: slope = {slope:.4f}, intercept = {intercept:.4f}")
     return out
 
@@ -379,16 +382,16 @@ if __name__ == "__main__":
     metrics = {
         "n_tracts": int(len(df)),
         "adi_source": adi_source,
-        "random_5fold_r2_mean":  round(float(rand_results["r2"].mean()), 4),
-        "random_5fold_r2_std":   round(float(rand_results["r2"].std()), 4),
-        "random_5fold_mae_mean": round(float(rand_results["mae"].mean()), 4),
-        "calibration_slope":     round(cal_slope, 4),
-        "calibration_intercept": round(cal_intercept, 4),
-        "loro_r2_min": round(float(loro_results["r2"].min()), 4),
-        "loro_r2_max": round(float(loro_results["r2"].max()), 4),
+        "random_5fold_r2_mean":  round(float(rand_results["r2"].mean()), 6),
+        "random_5fold_r2_std":   round(float(rand_results["r2"].std()), 6),
+        "random_5fold_mae_mean": round(float(rand_results["mae"].mean()), 6),
+        "calibration_slope":     round(cal_slope, 6),
+        "calibration_intercept": round(cal_intercept, 6),
+        "loro_r2_min": round(float(loro_results["r2"].min()), 6),
+        "loro_r2_max": round(float(loro_results["r2"].max()), 6),
         # Rank agreement of out-of-fold predictions with PLACES (for tract
         # prioritization), reported alongside R² (point-estimate accuracy)
-        "spearman_rho_oof": round(float(stats.spearmanr(df["oof_pred"], df[TARGET])[0]), 4),
+        "spearman_rho_oof": round(float(stats.spearmanr(df["oof_pred"], df[TARGET])[0]), 6),
         **checks,
         "manuscript_target_r2": 0.444,
     }
