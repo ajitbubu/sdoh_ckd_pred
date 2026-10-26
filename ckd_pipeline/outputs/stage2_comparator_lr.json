@@ -1,47 +1,47 @@
 {
-  "method": "5-fold stratified CV re-run inside each of 1000 Rao-Wu PSU-within-strata bootstrap replicates; replicate MEC weights; percentile 95% CIs; no p-values",
+  "method": "5-fold stratified CV re-run inside each of 1000 Rao-Wu PSU-within-strata bootstrap replicates; replicate survey weights; percentile 95% CIs; no p-values",
   "models": {
     "xgb_native": {
       "auroc": 0.7657,
       "auroc_ci": [
-        0.7383,
-        0.782
+        0.738262,
+        0.782008
       ]
     },
     "xgb_median": {
       "auroc": 0.7662,
       "auroc_ci": [
-        0.7391,
-        0.7825
+        0.739134,
+        0.78245
       ]
     },
     "lr_median": {
       "auroc": 0.7758,
       "auroc_ci": [
-        0.759,
-        0.7889
+        0.759027,
+        0.788853
       ]
     }
   },
   "delta_xgb_median_minus_lr_median": {
     "estimate": -0.0097,
     "ci": [
-      -0.0272,
-      0.0043
+      -0.027226,
+      0.004318
     ]
   },
   "delta_xgb_native_minus_lr_median": {
     "estimate": -0.0102,
     "ci": [
-      -0.0279,
-      0.0029
+      -0.027935,
+      0.00286
     ]
   },
   "delta_xgb_native_minus_xgb_median": {
     "estimate": -0.0005,
     "ci": [
-      -0.0069,
-      0.0052
+      -0.006912,
+      0.005215
     ]
   }
 }

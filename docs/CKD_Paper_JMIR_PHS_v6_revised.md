@@ -261,7 +261,7 @@ All data analyzed in this study are publicly available. NHANES public-use files 
 
 # Use of Generative AI
 
-The authors used Claude (Anthropic; [AUTHORS: model and version]) to help write and debug analysis code, to draft and edit manuscript text, and to check reported values against analysis outputs. The authors reviewed, edited, and verified all AI-assisted content, re-ran all analyses, and take full responsibility for the content of this article.
+The authors used Claude Opus 5.5 (Anthropic) to help write and debug analysis code, to draft and edit manuscript text, and to check reported values against analysis outputs. The authors reviewed, edited, and verified all AI-assisted content, re-ran all analyses, and take full responsibility for the content of this article.
 
 # Authors' Contributions
 

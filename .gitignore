@@ -28,3 +28,6 @@ ckd_pipeline/models/
 LOGIN_CREDENTIALS.md
 *.pem
 *.key
+
+# Extracted copies of the metrics archive
+docs/Multimedia_Appendix_2_pipeline_metrics/

@@ -2,10 +2,10 @@ Metric,Value
 Discrimination — AUROC (95% CI),0.776 (0.762–0.790)
 "Discrimination — AUROC, per-fold range",0.763–0.797
 Discrimination — AUPRC (95% CI),0.414 (0.388–0.439)
-Overall accuracy — Brier score (95% CI),0.100 (0.095–0.105)
+Overall accuracy — Brier score (95% CI),0.100 (0.095–0.106)
 Overall accuracy — Brier skill score vs prevalence-only (95% CI),0.164 (0.147–0.181)
 Calibration — logistic slope (95% CI),0.988 (0.932–1.049)
-Calibration — logistic intercept (95% CI),-0.001 (-0.062–0.060)
+Calibration — logistic intercept (95% CI),-0.001 (-0.062–0.061)
 Calibration — in-the-large (95% CI),-0.000 (-0.006–0.006)
 Calibration — ICI / E50 / E90,0.006 / 0.006 / 0.011
 Calibration — decile slope (95% CI),1.002 (0.955–1.057)

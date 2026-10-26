@@ -9,6 +9,8 @@ Builds the JMIR PHS v6 resubmission from docs/CKD_Paper_JMIR_PHS_v6_revised.md:
   docs/CKD_Paper_JMIR_PHS_v6_Multimedia_Appendix_1.docx  supplementary tables,
                                                        split out of the manuscript
   docs/CKD_Paper_JMIR_PHS_v6_Multimedia_Appendix_3_TRIPOD-AI.docx  TRIPOD+AI checklist
+  docs/Multimedia_Appendix_2_pipeline_metrics.zip      metric files from
+                                                       ckd_pipeline/outputs/
 
 Citations are written as {{key}} in the Markdown and numbered in order of
 first appearance (JMIR reference style). Styles come from
@@ -22,6 +24,7 @@ import os
 import re
 import subprocess
 import tempfile
+import zipfile
 
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
@@ -37,6 +40,8 @@ HIGHLIGHTED = os.path.join(DOCS, "CKD_Paper_JMIR_PHS_v6_revised_highlighted.docx
 APPENDIX_1 = os.path.join(DOCS, "CKD_Paper_JMIR_PHS_v6_Multimedia_Appendix_1.docx")
 APPENDIX_3_MD = os.path.join(DOCS, "CKD_Paper_JMIR_PHS_v6_Multimedia_Appendix_3_TRIPOD-AI.md")
 APPENDIX_3 = APPENDIX_3_MD.replace(".md", ".docx")
+APPENDIX_2 = os.path.join(DOCS, "Multimedia_Appendix_2_pipeline_metrics.zip")
+OUTPUTS = os.path.join(BASE_DIR, "ckd_pipeline", "outputs")
 
 REFS = {
     "cdc2023": "Centers for Disease Control and Prevention. Chronic Kidney Disease in the United States, 2023. Atlanta, GA: US Department of Health and Human Services; 2023. URL: https://archive.cdc.gov/www_cdc_gov/kidney-disease/php/data-research/index.html [accessed 2026-10-24]",
@@ -172,6 +177,23 @@ def pandoc(text, out):
     print(f"  ✓ {out}")
 
 
+def build_metrics_zip():
+    """Multimedia Appendix 2: the metric files written by the pipeline scripts
+    (stage1_*, stage2_*, tableS*), except per-person out-of-fold predictions. Fixed
+    timestamps so an unchanged rebuild gives an identical archive."""
+    names = sorted(n for n in os.listdir(OUTPUTS)
+                   if n.startswith(("stage1_", "stage2_", "tableS"))
+                   and n.endswith((".json", ".csv", ".txt"))
+                   and not n.endswith("oof_predictions.csv"))
+    with zipfile.ZipFile(APPENDIX_2, "w", zipfile.ZIP_DEFLATED) as z:
+        for n in names:
+            info = zipfile.ZipInfo(n, date_time=(2026, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            with open(os.path.join(OUTPUTS, n), "rb") as f:
+                z.writestr(info, f.read())
+    print(f"  ✓ {APPENDIX_2}  ({len(names)} files)")
+
+
 if __name__ == "__main__":
     with open(MD, encoding="utf-8") as f:
         text = number_citations(f.read())
@@ -180,6 +202,7 @@ if __name__ == "__main__":
     pandoc(appendix, APPENDIX_1)
     with open(APPENDIX_3_MD, encoding="utf-8") as f:
         pandoc(f.read(), APPENDIX_3)
+    build_metrics_zip()
     if os.path.exists(V5):
         n, total = highlight_changes(CLEAN, V5, HIGHLIGHTED)
         print(f"  ✓ {HIGHLIGHTED}  ({n}/{total} paragraphs highlighted as new/changed)")
