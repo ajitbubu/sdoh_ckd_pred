@@ -57,4 +57,4 @@ See [CITATION.cff](CITATION.cff). Please also cite the data sources: the Neighbo
 
 ## License
 
-No license has been specified yet.
+The code is released under the [MIT License](LICENSE). The license covers the code and the derived results in this repository, not the source data: NHANES and CDC PLACES are public-domain US government data, and the Neighborhood Atlas ADI is subject to its own data use agreement and is not included here.

@@ -22,5 +22,6 @@
     "area deprivation index",
     "NHANES",
     "CDC PLACES"
-  ]
+  ],
+  "license": "MIT"
 }
