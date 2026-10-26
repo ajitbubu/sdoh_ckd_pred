@@ -1,5 +1,7 @@
 # SDOH-CKDPred: open CKD small-area surveillance and screening triage
 
+Archived version: [10.5281/zenodo.23655069](https://doi.org/10.5281/zenodo.23655069) (v6.0.1).
+
 Analysis code for the manuscript "Neighborhood Deprivation and Undetected Chronic Kidney Disease Burden: Open Small-Area Surveillance and Non-Laboratory Screening Triage Using CDC PLACES and NHANES" (JMIR Public Health and Surveillance, manuscript 101575). Every number, table, and figure in the manuscript is produced by the scripts in `src/` from public data.
 
 The study has 2 separate, unlinked analyses:
@@ -55,4 +57,4 @@ See [CITATION.cff](CITATION.cff). Please also cite the data sources: the Neighbo
 
 ## License
 
-[AUTHORS: choose a license, e.g., MIT, and add a LICENSE file; the repository currently has none.]
+No license has been specified yet.
